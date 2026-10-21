@@ -54,8 +54,8 @@ export default function PrivacyPage() {
             advertising.
           </p>
           <p className="text-body text-muted-foreground">
-            Your email address is used to send one optional email per gameweek ("your brief is
-            ready"). You can turn this off at any time in Settings.
+            Your email address is used to send one optional email per gameweek (&ldquo;your brief is
+            ready&rdquo;). You can turn this off at any time in Settings.
           </p>
         </section>
 
@@ -93,7 +93,7 @@ export default function PrivacyPage() {
           <p className="text-small text-muted-foreground">
             <strong className="text-foreground">Non-affiliation notice.</strong> Final Ball is an
             independent project and is not affiliated with, endorsed by, or connected to the
-            Premier League, Fantasy Premier League, or any of their partners. "FPL" in these pages
+            Premier League, Fantasy Premier League, or any of their partners. &ldquo;FPL&rdquo; in these pages
             refers to the Fantasy Premier League game.
           </p>
         </section>
