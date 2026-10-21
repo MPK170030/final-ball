@@ -130,6 +130,50 @@ async function main() {
   for (const [country, id] of Array.from(countryMap.entries()).slice(0, 10)) {
     console.log(`  ${country.padEnd(30)} ${id}`)
   }
+
+  // ------------------------------------------------------------------
+  // Tie-group probe — informs Wednesday's lookup algorithm.
+  // For each target country, fetch a few standings pages and measure
+  // how many entries share the same rank (tie-group size).
+  // The lookup must check ±ceil(maxTie/50) pages around the target page.
+  // ------------------------------------------------------------------
+  const PROBE_TARGETS = ['England', 'India', 'United States', 'Pakistan', 'Nigeria', 'Bangladesh']
+  const PROBE_PAGES = [1, 100, 1000]
+
+  console.log('\n--- Tie-group probe ---')
+  console.log('(max entries sharing the same rank on a given page)\n')
+
+  for (const country of PROBE_TARGETS) {
+    const leagueId = countryMap.get(country)
+    if (!leagueId) {
+      console.log(`  ${country}: not found in this sample — skipping`)
+      continue
+    }
+    const rowData: string[] = []
+    for (const page of PROBE_PAGES) {
+      try {
+        const s = await fpl.getLeagueStandings(leagueId, page)
+        if (!s.standings.results.length) {
+          rowData.push(`p${page}:no entries`)
+          break
+        }
+        const groups = new Map<number, number>()
+        for (const r of s.standings.results) {
+          groups.set(r.rank, (groups.get(r.rank) ?? 0) + 1)
+        }
+        const maxTie = Math.max(...groups.values())
+        const firstRank = s.standings.results[0]?.rank ?? '?'
+        const lastRank = s.standings.results[s.standings.results.length - 1]?.rank ?? '?'
+        rowData.push(`p${page}(r${firstRank}-${lastRank}):maxTie=${maxTie}`)
+        if (!s.standings.has_next) break
+      } catch {
+        rowData.push(`p${page}:error`)
+      }
+      await sleep(BATCH_DELAY_MS)
+    }
+    console.log(`  ${country.padEnd(20)} ${leagueId}  |  ${rowData.join('  |  ')}`)
+  }
+  console.log('\nCopy the tie-group data into docs/STATUS.md.')
 }
 
 function sleep(ms: number) {

@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@finalball/db'],
+  transpilePackages: ['@finalball/agent', '@finalball/db'],
 }
 
 export default nextConfig
