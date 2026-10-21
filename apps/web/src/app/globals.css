@@ -1,9 +1,7 @@
-/* shadcn runtime — must stay first */
 @import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
 /* Design tokens — generated from docs/design-system/tokens.json.
    Unlayered :root / .dark blocks win the CSS cascade over any @layer rules,
-   so our hex values always override whatever shadcn/tailwind.css injects. */
+   so our hex values always override Tailwind's @layer base rules. */
 @import './tokens.css';
 
 @tailwind base;
