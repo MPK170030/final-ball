@@ -1,6 +1,6 @@
-export { FplClient, FplError } from './fpl/client.js'
-export { MemoryCacheAdapter } from './fpl/cache.js'
-export type { CacheAdapter } from './fpl/cache.js'
+export { FplClient, FplError } from './fpl/client'
+export { MemoryCacheAdapter } from './fpl/cache'
+export type { CacheAdapter } from './fpl/cache'
 export {
   getCurrentGameweek,
   getNextGameweek,
@@ -8,7 +8,7 @@ export {
   getActiveGameweek,
   isGameweekFinished,
   isDeadlinePassed,
-} from './fpl/helpers.js'
+} from './fpl/helpers'
 export type {
   Bootstrap,
   Club,
@@ -24,4 +24,4 @@ export type {
   LeagueStandingsResponse,
   PickItem,
   Player,
-} from './fpl/types.js'
+} from './fpl/types'
