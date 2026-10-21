@@ -1,0 +1,31 @@
+/* shadcn runtime — must stay first */
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+/* Design tokens — generated from docs/design-system/tokens.json.
+   Unlayered :root / .dark blocks win the CSS cascade over any @layer rules,
+   so our hex values always override whatever shadcn/tailwind.css injects. */
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Tabular figures for all mono text */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+}
