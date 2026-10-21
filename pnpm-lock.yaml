@@ -29,6 +29,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.9.0
         version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@finalball/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@finalball/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -111,6 +114,9 @@ importers:
 
   packages/agent:
     devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

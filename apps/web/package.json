@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@finalball/agent": "workspace:*",
     "@finalball/db": "workspace:*",
     "@number-flow/react": "^0.6.2",
     "@supabase/ssr": "^0.5.0",

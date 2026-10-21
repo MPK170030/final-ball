@@ -262,6 +262,61 @@ export interface EntryLeague {
   entry_last_rank: number
 }
 
+export interface EntryPicks {
+  active_chip: string | null
+  automatic_subs: AutomaticSub[]
+  entry_history: EntryHistoryItem
+  picks: PickItem[]
+}
+
+export interface PickItem {
+  element: number
+  position: number
+  multiplier: number
+  is_captain: boolean
+  is_vice_captain: boolean
+}
+
+export interface AutomaticSub {
+  entry: number
+  element_in: number
+  element_out: number
+  event: number
+}
+
+export interface EntryHistoryItem {
+  event: number
+  points: number
+  total_points: number
+  rank: number | null
+  rank_sort: number | null
+  overall_rank: number
+  percentile_rank: number | null
+  bank: number
+  value: number
+  event_transfers: number
+  event_transfers_cost: number
+  points_on_bench: number
+}
+
+export interface EntryHistory {
+  current: EntryHistoryItem[]
+  past: EntrySeasonHistory[]
+  chips: EntryChipHistory[]
+}
+
+export interface EntrySeasonHistory {
+  season_name: string
+  total_points: number
+  rank: number
+}
+
+export interface EntryChipHistory {
+  name: string
+  time: string
+  event: number
+}
+
 export interface LeagueStandingsResponse {
   league: {
     id: number
