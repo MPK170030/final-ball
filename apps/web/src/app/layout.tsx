@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
-import { IBM_Plex_Mono, IBM_Plex_Sans, Geist } from 'next/font/google'
+import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google'
 import './globals.css'
 import { cn } from "@/lib/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const ibmPlexSans = IBM_Plex_Sans({
   subsets: ['latin'],
@@ -29,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={cn("dark", ibmPlexSans.variable, ibmPlexMono.variable, "font-sans", geist.variable)}
+      className={cn("dark", ibmPlexSans.variable, ibmPlexMono.variable, "font-sans")}
       suppressHydrationWarning
     >
       <body>{children}</body>
