@@ -51,7 +51,7 @@ const RANK_GUIDE: GuideData = {
   title: "Where's my country rank?",
   steps: [
     { sketch: 'nav' as const, n: 'Step 1', text: <>Open the FPL app and tap <b>Leagues</b>.</> },
-    { sketch: 'bar2' as const, n: 'Step 2', text: <>Find your <b>country's name</b> in the league list.</> },
+    { sketch: 'bar2' as const, n: 'Step 2', text: <>Find your <b>country&apos;s name</b> in the league list.</> },
     { sketch: 'bar3' as const, n: 'Step 3', text: <>Your rank is the <b>number next to it</b>. Enter it as shown right now.</> },
   ],
 }
@@ -69,7 +69,7 @@ const LINK_GUIDE_PHONE = {
   label: 'On your phone',
   title: 'Getting your FPL link on a phone',
   steps: [
-    { sketch: 'nav' as const, n: 'Step 1', text: <>Open the FPL website (not the app) in your phone's <b>browser</b>.</> },
+    { sketch: 'nav' as const, n: 'Step 1', text: <>Open the FPL website (not the app) in your phone&apos;s <b>browser</b>.</> },
     { sketch: 'bar2' as const, n: 'Step 2', text: <>Sign in, then tap your team name. The URL will contain <b>/entry/</b> followed by your ID.</> },
     { sketch: 'bar3' as const, n: 'Step 3', text: <>Copy the URL or just the number after <b>/entry/</b> and paste it here.</> },
   ],
@@ -80,7 +80,7 @@ const LINK_GUIDE_COMPUTER = {
   title: 'Getting your FPL link on a computer',
   steps: [
     { sketch: 'bar2' as const, n: 'Step 1', text: <>Go to <b>fantasy.premierleague.com</b> and sign in.</> },
-    { sketch: 'bar3' as const, n: 'Step 2', text: <>Click your team name. Your URL will contain <b>/entry/</b> followed by a number — that's your team ID.</> },
+    { sketch: 'bar3' as const, n: 'Step 2', text: <>Click your team name. Your URL will contain <b>/entry/</b> followed by a number — that&apos;s your team ID.</> },
   ],
 }
 

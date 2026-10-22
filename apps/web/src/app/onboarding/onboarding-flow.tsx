@@ -185,7 +185,7 @@ function FindForm({ countries, initialCountry, onSubmit, onNoRank }: FindFormPro
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-            <FieldHint>Detected from your device. Change it if it's wrong.</FieldHint>
+            <FieldHint>Detected from your device. Change it if it&apos;s wrong.</FieldHint>
             {errors.country && <FieldError id="country-err">{errors.country}</FieldError>}
           </div>
 
