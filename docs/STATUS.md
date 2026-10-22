@@ -57,12 +57,19 @@ Probed pages 1, 100, 1000 of the six biggest country leagues.
 - Anthropic API key with a spend limit (needed Thursday for the agent).
 - **Phase 7 (deploy):** Connect Vercel to repo + add env vars; verify `https://finalball.manavpkothari.dev/auth/callback` in Supabase redirect URLs; publish Google OAuth app from Testing → Production.
 
-## Owner's test data for the lookup (fill in)
-| Who | Team ID | Country | Country rank today | Team name |
+## Owner's test data for the lookup
+| Who | Team ID | Country | Country rank (2026-10-22) | Team name |
 |---|---|---|---|---|
-| Manav | | | | |
-| | | | | |
-| | | | | |
+| Manav | 3434860 | USA | 130,322 | Kobbie and Paste |
+
+## Lookup test results (2026-10-22)
+Ran `scripts/test-lookup.ts` directly against FPL (no auth, mirrors route logic).
+
+| Who | Team name | Rank | Found | Team ID | Pages scanned | Time |
+|---|---|---|---|---|---|---|
+| Manav | Kobbie and Paste | 130,322 | yes | 3434860 | 4 | 1.5s |
+
+Notes: rank 130,322 → startPage 2607 → found on page 2609. Algorithm scanned pages 2606–2609 (rank ±1 window). No issues.
 
 ## Open items (non-blocking)
 - FPL app tab names in the guide panels ("Leagues", "Points", "Pick Team") to confirm during UI work.

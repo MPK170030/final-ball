@@ -185,6 +185,24 @@ export interface Database {
         }
         Relationships: []
       }
+      lookup_usage: {
+        Row: {
+          user_id: string
+          hour_bucket: string
+          count: number
+        }
+        Insert: {
+          user_id: string
+          hour_bucket: string
+          count?: number
+        }
+        Update: {
+          user_id?: string
+          hour_bucket?: string
+          count?: number
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
