@@ -2,6 +2,7 @@ import { FplClient } from './fpl/client.js'
 import { MemoryCacheAdapter } from './fpl/cache.js'
 import { loadContext } from './context.js'
 import { scorePlayer } from './analysis/score.js'
+import { findWeakSpots } from './analysis/weakspot.js'
 import type { ScoreBreakdown } from './analysis/score.js'
 import type { Player } from './fpl/types.js'
 
@@ -96,4 +97,31 @@ for (const [rank, { player, score, position }] of sorted.entries()) {
   ].join('  '))
 }
 
-console.log(`\nLoaded and scored in ${elapsed}s`)
+// ── Weak spots ──────────────────────────────────────────────────────────────
+const weakspots = findWeakSpots(squadPlayers, allFixtures, bootstrap, freeTransfers)
+
+const POS_FULL: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
+
+console.log(`\n── Weak spots (${freeTransfers} free transfer${freeTransfers > 1 ? 's' : ''}) ──`)
+
+console.log(`\nSell candidate${weakspots.sellCandidates.length > 1 ? 's' : ''}:`)
+for (const { player, score, squadRank } of weakspots.sellCandidates) {
+  const pos = POS_FULL[player.element_type]
+  const price = `£${(player.now_cost / 10).toFixed(1)}m`
+  const bench = squadPlayers.indexOf(player) >= 11 ? ' [bench]' : ''
+  console.log(`  → ${player.web_name} (${pos}, ${price}${bench}) — 3-GW score ${score.total.toFixed(1)}, squad rank ${squadRank}/15`)
+}
+
+console.log(`\nWhy sell? context (D8.6) — 3 weakest in squad:`)
+for (const { player, score, squadRank } of weakspots.whySellContext) {
+  const pos = POS_FULL[player.element_type]
+  const isSell = weakspots.sellCandidates.some(s => s.player.id === player.id)
+  const marker = isSell ? ' ← SELL' : ''
+  const bench = squadPlayers.indexOf(player) >= 11 ? ' [bench]' : ''
+  const gwBreakdown = score.perGw
+    .map(g => (g.fdr === null ? 'BLK' : g.points.toFixed(1)))
+    .join(' / ')
+  console.log(`  ${squadRank}. ${player.web_name} (${pos}${bench}) — ${score.total.toFixed(1)} pts  [${gwBreakdown}]${marker}`)
+}
+
+console.log(`\nLoaded, scored, and ranked in ${elapsed}s`)
