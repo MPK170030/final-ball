@@ -1,4 +1,4 @@
-import type { Bootstrap } from './types'
+import type { Bootstrap } from './types.js'
 
 export function getCurrentGameweek(bootstrap: Bootstrap): number | null {
   return bootstrap.events.find((e) => e.is_current)?.id ?? null

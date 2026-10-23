@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "pnpm -r exec tsc --noEmit",
-    "generate:tokens": "tsx scripts/build-tokens.ts"
+    "generate:tokens": "tsx scripts/build-tokens.ts",
+    "agent:run": "tsx packages/agent/src/cli.ts"
   },
   "devDependencies": {
     "eslint-config-prettier": "^9.1.0",
