@@ -98,7 +98,7 @@ for (const [rank, { player, score, position }] of sorted.entries()) {
 }
 
 // ── Weak spots ──────────────────────────────────────────────────────────────
-const weakspots = findWeakSpots(squadPlayers, allFixtures, bootstrap, freeTransfers)
+const weakspots = findWeakSpots(squadPlayers, picks.picks, allFixtures, bootstrap, freeTransfers)
 
 const POS_FULL: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
 

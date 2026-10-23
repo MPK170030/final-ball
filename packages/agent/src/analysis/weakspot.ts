@@ -1,4 +1,4 @@
-import type { Player, Bootstrap, Fixture } from '../fpl/types.js'
+import type { Player, Bootstrap, Fixture, PickItem } from '../fpl/types.js'
 import { scorePlayer, type ScoreBreakdown } from './score.js'
 
 export interface PlayerScore {
@@ -6,43 +6,65 @@ export interface PlayerScore {
   score: ScoreBreakdown
   /** 1 = weakest in squad, 15 = strongest. */
   squadRank: number
+  /** pts/£m used for ranking (backup GK has a floor applied, D17.3). */
+  rankScore: number
 }
 
 export interface WeakspotResult {
-  /** All 15 players sorted weakest → strongest. */
+  /** All 15 players sorted weakest → strongest by rankScore. */
   ranked: PlayerScore[]
   /**
-   * The actual sell candidates: top N from ranked, where N = min(freeTransfers, 2).
-   * These are the players the agent will search replacements for.
+   * Sell candidates: top N, N = min(freeTransfers, 2).
    */
   sellCandidates: PlayerScore[]
   /**
-   * The top 3 weakest (or fewer if squad is small), used by the "Why sell X?" view (D8.6).
-   * Always includes the sell candidate(s) plus enough context to show the ranking isn't arbitrary.
+   * Top 3 weakest for the "Why sell X?" view (D8.6).
    */
   whySellContext: PlayerScore[]
 }
 
 /**
- * Ranks all 15 squad players by 3-GW projected score (weakest first) and
- * identifies sell candidates based on the number of free transfers available.
- *
- * Ranking is cross-squad (all positions together) per the PROMPT spec — the
- * weakest player regardless of position is the sell target. The candidate search
- * phase enforces position matching when finding replacements.
+ * A backup GK scoring 0 pts is expected — they provide structural insurance
+ * value, not scoring returns. Without an offset they'd always rank as the
+ * squad's worst player and dominate the sell recommendation regardless of
+ * whether the transfer makes sense. The floor represents ~1 GW of basic
+ * coverage value. If their pts/£m is still poor after the floor (expensive
+ * bench GK, poor form), they'll still rank weakly — just not unfairly so.
+ * (D17.3)
  */
+const BENCH_GK_FLOOR_PTS = 2.0
+
+function backupGkId(squadPlayers: Player[], picks: PickItem[]): number | null {
+  for (const pick of picks) {
+    if (pick.position > 11) {
+      const player = squadPlayers.find(p => p.id === pick.element)
+      if (player?.element_type === 1) return player.id
+    }
+  }
+  return null
+}
+
 export function findWeakSpots(
   squadPlayers: Player[],
+  picks: PickItem[],
   allFixtures: Fixture[],
   bootstrap: Bootstrap,
   freeTransfers: number,
 ): WeakspotResult {
-  const scored = squadPlayers.map(player => ({
-    player,
-    score: scorePlayer(player, allFixtures, bootstrap),
-  }))
+  const gkBackupId = backupGkId(squadPlayers, picks)
 
-  const sorted = [...scored].sort((a, b) => a.score.total - b.score.total)
+  const scored = squadPlayers.map(player => {
+    const score = scorePlayer(player, allFixtures, bootstrap)
+    const isBackupGk = player.id === gkBackupId
+    const effectivePts = isBackupGk
+      ? Math.max(score.total, BENCH_GK_FLOOR_PTS)
+      : score.total
+    const rankScore =
+      player.now_cost > 0 ? effectivePts / (player.now_cost / 10) : 0
+    return { player, score, rankScore }
+  })
+
+  const sorted = [...scored].sort((a, b) => a.rankScore - b.rankScore)
 
   const ranked: PlayerScore[] = sorted.map((item, i) => ({
     ...item,
@@ -51,9 +73,7 @@ export function findWeakSpots(
 
   const n = Math.min(Math.max(freeTransfers, 1), 2)
   const sellCandidates = ranked.slice(0, n)
-
-  // D8.6: show the sell target(s) in context of the 3 weakest overall
-  const whySellContext = ranked.slice(0, Math.max(3, n))
+  const whySellContext = ranked.slice(0, 3)
 
   return { ranked, sellCandidates, whySellContext }
 }
