@@ -1,3 +1,6 @@
+export { generateTransfers } from './generateTransfers.js'
+export type { GenerateTransfersResult } from './generateTransfers.js'
+export type { TraceStep } from './trace.js'
 export { FplClient, FplError } from './fpl/client.js'
 export { buildTransferPlan } from './analysis/candidates.js'
 export type { Candidate, TransferOption, TransferPlanResult } from './analysis/candidates.js'

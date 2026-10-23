@@ -1,6 +1,7 @@
 import type { Player, Bootstrap, Fixture } from '../fpl/types.js'
 import type { AgentContext } from '../context.js'
 import type { WeakspotResult, PlayerScore } from './weakspot.js'
+import type { TraceEntry } from '../trace.js'
 import { scorePlayer } from './score.js'
 import type { ScoreBreakdown } from './score.js'
 
@@ -20,7 +21,7 @@ export interface TransferOption {
   alternatives: Candidate[]
   /** Top 10 constraint-passing candidates — passed to the model for ranking (step 6). */
   candidatesForModel: Candidate[]
-  /** Constraint violations that caused a replan, for the agent trace (D8.4). */
+  /** Constraint violations that caused a replan, for the card-level display. */
   replans: string[]
 }
 
@@ -30,8 +31,10 @@ export interface TransferPlanResult {
   /** 0–2 options (never more than freeTransfers). */
   transfers: TransferOption[]
   /** Full Phase 4+5 decision trace. */
-  trace: string[]
+  trace: TraceEntry[]
 }
+
+const POS: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,7 +81,7 @@ function eligibleCandidates(
 
 /**
  * Phase 5: walk the ranked candidates and pick up to `limit` that pass the
- * 3-per-club constraint. Returns valid picks + replan notes for the trace.
+ * 3-per-club constraint. Returns valid picks + replan notes for the agent trace (D8.4).
  */
 function pickValid(
   candidates: Candidate[],
@@ -106,19 +109,15 @@ function pickValid(
 function oneTransferPlan(
   sc: PlayerScore,
   ctx: AgentContext,
-  trace: string[],
+  trace: TraceEntry[],
 ): TransferPlanResult {
   const { bootstrap, allFixtures, bank, squadByClub, squadPlayers } = ctx
   const sp = getSellingPrice(sc.player, ctx)
   const budget = sp + bank
-
-  trace.push(
-    `Phase 4: sell ${sc.player.web_name} (£${(sc.player.now_cost / 10).toFixed(1)}m, sp £${(sp / 10).toFixed(1)}m) — budget £${(budget / 10).toFixed(1)}m`,
-  )
+  const posStr = POS[sc.player.element_type] ?? 'player'
 
   const owned = new Set(squadPlayers.map(p => p.id))
 
-  // After the sell, the sold player's club slot frees up
   const clubAfterSell = new Map(squadByClub)
   clubAfterSell.set(sc.player.team, (clubAfterSell.get(sc.player.team) ?? 1) - 1)
 
@@ -130,10 +129,16 @@ function oneTransferPlan(
     allFixtures,
     bootstrap,
   )
-  trace.push(`  ${raw.length} affordable same-position candidates`)
-
   const { valid, replans } = pickValid(raw, clubAfterSell)
-  if (replans.length) trace.push(`  Phase 5 replans: ${replans.join('; ')}`)
+
+  trace.push({
+    title: 'Candidates',
+    text: `Selling ${sc.player.web_name} (sp £${(sp / 10).toFixed(1)}m) — budget £${(budget / 10).toFixed(1)}m. ${raw.length} affordable ${posStr} candidates; ${valid.length} pass the club-limit filter.`,
+  })
+
+  for (const r of replans) {
+    trace.push({ title: 'Replan · Club limit', text: r, replan: true })
+  }
 
   const topPick = valid[0] ?? null
 
@@ -141,13 +146,14 @@ function oneTransferPlan(
     const reason = topPick
       ? `${topPick.player.web_name} (${topPick.score.total.toFixed(1)} pts) does not beat ${sc.player.web_name} (${sc.score.total.toFixed(1)} pts)`
       : 'No valid affordable same-position player found'
-    trace.push(`  Save recommended — ${reason}`)
+    trace.push({ title: 'Save', text: reason })
     return { save: true, saveReason: reason, transfers: [], trace }
   }
 
-  trace.push(
-    `  Top pick: ${topPick.player.web_name} £${(topPick.player.now_cost / 10).toFixed(1)}m — ${topPick.score.total.toFixed(1)} pts (${topPick.valueScore.toFixed(2)} pts/£m)`,
-  )
+  trace.push({
+    title: 'Best replacement',
+    text: `${topPick.player.web_name} £${(topPick.player.now_cost / 10).toFixed(1)}m — ${topPick.score.total.toFixed(1)} pts over 3 GWs (${topPick.valueScore.toFixed(2)} pts/£m).`,
+  })
 
   return {
     save: false,
@@ -170,25 +176,18 @@ function twoTransferPlan(
   sc0: PlayerScore,
   sc1: PlayerScore,
   ctx: AgentContext,
-  trace: string[],
+  trace: TraceEntry[],
 ): TransferPlanResult {
   const { bootstrap, allFixtures, bank, squadByClub, squadPlayers } = ctx
   const sp0 = getSellingPrice(sc0.player, ctx)
   const sp1 = getSellingPrice(sc1.player, ctx)
   const budget0 = sp0 + bank
 
-  trace.push(
-    `Phase 4: 2 free transfers — T1 sell ${sc0.player.web_name} (sp £${(sp0 / 10).toFixed(1)}m), T2 sell ${sc1.player.web_name} (sp £${(sp1 / 10).toFixed(1)}m)`,
-  )
-  trace.push(`  Bank £${(bank / 10).toFixed(1)}m, T1 budget £${(budget0 / 10).toFixed(1)}m`)
-
-  // Exclude both sell players from owned set so either position can be targeted
   const owned = new Set(squadPlayers.map(p => p.id))
   const ownedNoBothSells = new Set(
     [...owned].filter(id => id !== sc0.player.id && id !== sc1.player.id),
   )
 
-  // Base club counts after both sells
   const clubBase = new Map(squadByClub)
   clubBase.set(sc0.player.team, (clubBase.get(sc0.player.team) ?? 1) - 1)
   clubBase.set(sc1.player.team, (clubBase.get(sc1.player.team) ?? 1) - 1)
@@ -201,7 +200,6 @@ function twoTransferPlan(
     allFixtures,
     bootstrap,
   )
-  trace.push(`  T1 raw candidates: ${raw0.length}`)
 
   let topPick0: Candidate | null = null
   let topPick1: Candidate | null = null
@@ -211,7 +209,6 @@ function twoTransferPlan(
   const replans0: string[] = []
   const replans1: string[] = []
 
-  // Try T1 picks in value order, stop at the first pair that satisfies both constraints
   for (const c0 of raw0.slice(0, 30)) {
     const c0ClubCount = clubBase.get(c0.player.team) ?? 0
     if (c0ClubCount >= 3) {
@@ -227,7 +224,6 @@ function twoTransferPlan(
       continue
     }
 
-    // Club counts after T1 buy
     const clubAfterT1 = new Map(clubBase)
     clubAfterT1.set(c0.player.team, c0ClubCount + 1)
 
@@ -253,16 +249,24 @@ function twoTransferPlan(
     alts1 = valid1.slice(1, 4)
     t2ModelCandidates = valid1
     replans1.push(...rp1)
-    trace.push(`  T2 budget with ${c0.player.web_name}: £${(budget1 / 10).toFixed(1)}m, ${raw1.length} candidates`)
     break
   }
 
   if (!topPick0 || !topPick1) {
-    trace.push('  No valid 2-transfer pair — falling back to 1-transfer')
+    trace.push({ title: 'Fallback', text: 'No valid 2-transfer pair — falling back to a single transfer.' })
     return oneTransferPlan(sc0, ctx, trace)
   }
 
-  // Alternatives and candidatesForModel for T1: top picks under base club constraint
+  const budget1 = bank + sp0 + sp1 - topPick0.player.now_cost
+
+  trace.push({
+    title: 'Candidates',
+    text: `2 free transfers — selling ${sc0.player.web_name} (sp £${(sp0 / 10).toFixed(1)}m) and ${sc1.player.web_name} (sp £${(sp1 / 10).toFixed(1)}m). Bank: £${(bank / 10).toFixed(1)}m. T1: ${raw0.length} candidates; T2 budget: £${(budget1 / 10).toFixed(1)}m.`,
+  })
+
+  for (const r of replans0) trace.push({ title: 'Replan · T1', text: r, replan: true })
+  for (const r of replans1) trace.push({ title: 'Replan · T2', text: r, replan: true })
+
   const t1ModelCandidates: Candidate[] = [topPick0]
   for (const c0 of raw0) {
     if (t1ModelCandidates.length >= 10) break
@@ -273,22 +277,17 @@ function twoTransferPlan(
   }
   alts0 = t1ModelCandidates.slice(1, 4)
 
-  if (replans0.length) trace.push(`  T1 phase 5 replans: ${replans0.join('; ')}`)
-  if (replans1.length) trace.push(`  T2 phase 5 replans: ${replans1.join('; ')}`)
-  trace.push(
-    `  T1 pick: ${topPick0.player.web_name} £${(topPick0.player.now_cost / 10).toFixed(1)}m — ${topPick0.score.total.toFixed(1)} pts`,
-  )
-  trace.push(
-    `  T2 pick: ${topPick1.player.web_name} £${(topPick1.player.now_cost / 10).toFixed(1)}m — ${topPick1.score.total.toFixed(1)} pts`,
-  )
+  trace.push({
+    title: 'Best replacements',
+    text: `T1: ${topPick0.player.web_name} £${(topPick0.player.now_cost / 10).toFixed(1)}m — ${topPick0.score.total.toFixed(1)} pts. T2: ${topPick1.player.web_name} £${(topPick1.player.now_cost / 10).toFixed(1)}m — ${topPick1.score.total.toFixed(1)} pts.`,
+  })
 
-  // Phase 6: save check — only include transfers that improve raw 3-GW pts
   const t0Improves = topPick0.score.total > sc0.score.total
   const t1Improves = topPick1.score.total > sc1.score.total
 
   if (!t0Improves && !t1Improves) {
     const reason = 'Neither transfer improves 3-GW projected pts'
-    trace.push(`  Save recommended — ${reason}`)
+    trace.push({ title: 'Save', text: reason })
     return { save: true, saveReason: reason, transfers: [], trace }
   }
 
@@ -310,7 +309,7 @@ export function buildTransferPlan(
   ctx: AgentContext,
 ): TransferPlanResult {
   const { sellCandidates } = weakspots
-  const trace: string[] = []
+  const trace: TraceEntry[] = []
 
   if (ctx.freeTransfers === 2 && sellCandidates.length === 2) {
     return twoTransferPlan(sellCandidates[0], sellCandidates[1], ctx, trace)

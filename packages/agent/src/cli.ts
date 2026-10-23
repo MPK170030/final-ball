@@ -188,8 +188,9 @@ if (ranked.save) {
 }
 
 console.log(`\n── Agent trace ──`)
-for (const line of ranked.trace) {
-  console.log(`  ${line}`)
+for (const [i, step] of ranked.trace.entries()) {
+  const prefix = step.replan ? '  ↩ Replan' : `  [${i + 1}]`
+  console.log(`${prefix} ${step.title}: ${step.text}`)
 }
 
 console.log(`\n── Token usage ──`)

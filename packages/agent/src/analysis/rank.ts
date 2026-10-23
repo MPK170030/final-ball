@@ -3,6 +3,7 @@ import type { AgentContext } from '../context.js'
 import type { TransferPlanResult, Candidate } from './candidates.js'
 import type { PlayerScore } from './weakspot.js'
 import type { Player } from '../fpl/types.js'
+import type { TraceEntry } from '../trace.js'
 
 /** D17.5: minimum 3-GW pts gain to recommend a transfer over saving. */
 export const SAVE_THRESHOLD_PTS = 1.0
@@ -43,7 +44,7 @@ export interface RankedPlan {
   /** Shown alongside a save recommendation for comparison (D2.2). */
   bestOptionForComparison?: { player: Player; reason: string }
   transfers: RankedTransferCard[]
-  trace: string[]
+  trace: TraceEntry[]
   usage: { inputTokens: number; outputTokens: number }
 }
 
@@ -270,7 +271,7 @@ function resolveCandidate(modelName: string, candidates: Candidate[]): Candidate
 
 function deterministicFallback(
   plan: TransferPlanResult,
-  trace: string[],
+  trace: TraceEntry[],
   usage: { inputTokens: number; outputTokens: number },
 ): RankedPlan {
   return {
@@ -298,18 +299,18 @@ export async function rankWithModel(
   plan: TransferPlanResult,
   ctx: AgentContext,
 ): Promise<RankedPlan> {
-  const trace = [...plan.trace]
+  const trace: TraceEntry[] = [...plan.trace]
   const usage = { inputTokens: 0, outputTokens: 0 }
 
-  // Numerical phase already determined save — skip the model call
   if (plan.save) {
-    trace.push('Phase 6: skipped (numerical phase returned save)')
+    trace.push({ title: 'Model ranking skipped', text: 'Deterministic phase already recommended saving the transfer.' })
     return { save: true, saveReason: plan.saveReason, transfers: [], trace, usage }
   }
 
   const model = process.env['ANTHROPIC_MODEL'] ?? 'claude-sonnet-4-6'
   const client = new Anthropic()
-  trace.push(`Phase 6: ranking with ${model}`)
+  const candidateCount = plan.transfers.reduce((n, t) => n + t.candidatesForModel.length, 0)
+  trace.push({ title: 'Model ranking', text: `Ranking ${candidateCount} candidate${candidateCount !== 1 ? 's' : ''} with ${model}.` })
 
   let response: Anthropic.Message
   try {
@@ -323,17 +324,17 @@ export async function rankWithModel(
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    trace.push(`  Model call failed: ${msg} — deterministic fallback`)
+    trace.push({ title: 'Fallback', text: `Model call failed (${msg}) — using top-ranked deterministic picks.` })
     return deterministicFallback(plan, trace, usage)
   }
 
   usage.inputTokens = response.usage.input_tokens
   usage.outputTokens = response.usage.output_tokens
-  trace.push(`  Tokens: ${usage.inputTokens} in / ${usage.outputTokens} out`)
+  trace.push({ title: 'Tokens used', text: `${usage.inputTokens} input / ${usage.outputTokens} output.` })
 
   const toolBlock = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
   if (!toolBlock) {
-    trace.push('  No tool_use block in response — deterministic fallback')
+    trace.push({ title: 'Fallback', text: 'Model did not return a structured plan — using top-ranked deterministic picks.' })
     return deterministicFallback(plan, trace, usage)
   }
 
@@ -342,7 +343,7 @@ export async function rankWithModel(
   // ── Save recommendation ────────────────────────────────────────────────────
   if (output.recommendation === 'save') {
     const saveReason = output.saveReason ?? 'No candidate improves the squad enough to justify using the transfer.'
-    trace.push(`  Model recommends save: "${saveReason}"`)
+    trace.push({ title: 'Model recommends save', text: saveReason })
 
     let bestOptionForComparison: RankedPlan['bestOptionForComparison']
     if (output.bestOptionForComparison && plan.transfers[0]) {
@@ -372,20 +373,24 @@ export async function rankWithModel(
     const replans = [...opt.replans]
     let replanCount = 0
 
-    // Resolve top pick (step 7)
+    // Step 7: validate top pick
     let topPick = resolveCandidate(modelCard.topPick.playerName, allCandidates)
     if (!topPick) {
       if (replanCount < MAX_REPLANS) {
         replanCount++
         replans.push(
-          `Step 7: model top pick "${modelCard.topPick.playerName}" not in candidate list — using deterministic #1 (${opt.topPick.player.web_name})`,
+          `Model top pick "${modelCard.topPick.playerName}" not in candidate list — using ${opt.topPick.player.web_name}`,
         )
-        trace.push(`  T${i + 1} step 7 replan: unknown top pick → ${opt.topPick.player.web_name}`)
+        trace.push({
+          title: `Replan · T${i + 1} pick`,
+          text: `Model chose "${modelCard.topPick.playerName}" — not in the valid candidate list. Using ${opt.topPick.player.web_name} instead.`,
+          replan: true,
+        })
       }
       topPick = opt.topPick
     }
 
-    // Resolve alternatives (step 7)
+    // Step 7: validate alternatives
     const usedIds = new Set([topPick.player.id])
     const alternatives: RankedAlternative[] = []
 
@@ -395,7 +400,12 @@ export async function rankWithModel(
       if (!resolved || usedIds.has(resolved.player.id)) {
         if (!resolved && replanCount < MAX_REPLANS) {
           replanCount++
-          replans.push(`Step 7: model alternative "${alt.playerName}" not found — skipped`)
+          replans.push(`Model alternative "${alt.playerName}" not found — skipped`)
+          trace.push({
+            title: `Replan · T${i + 1} alt`,
+            text: `Model alternative "${alt.playerName}" not in valid list — skipped.`,
+            replan: true,
+          })
         }
         continue
       }
@@ -403,7 +413,6 @@ export async function rankWithModel(
       alternatives.push({ candidate: resolved, reason: alt.reason })
     }
 
-    // Fill any remaining slots from the deterministic list
     for (const c of allCandidates) {
       if (alternatives.length >= 3) break
       if (usedIds.has(c.player.id)) continue
@@ -412,9 +421,12 @@ export async function rankWithModel(
     }
 
     const reranked = topPick.player.web_name !== opt.topPick.player.web_name
-      ? ' (model re-ranked from deterministic #1)'
+      ? ' (model chose differently from deterministic top pick)'
       : ''
-    trace.push(`  T${i + 1}: sell ${opt.sell.player.web_name} → buy ${topPick.player.web_name}${reranked}`)
+    trace.push({
+      title: `T${i + 1} transfer`,
+      text: `Sell ${opt.sell.player.web_name} → buy ${topPick.player.web_name}${reranked}.`,
+    })
 
     transfers.push({
       sell: opt.sell,
@@ -430,7 +442,7 @@ export async function rankWithModel(
   }
 
   if (transfers.length === 0) {
-    trace.push('  Model returned no transfer cards — deterministic fallback')
+    trace.push({ title: 'Fallback', text: 'Model returned no transfer cards — using top-ranked deterministic picks.' })
     return deterministicFallback(plan, trace, usage)
   }
 
