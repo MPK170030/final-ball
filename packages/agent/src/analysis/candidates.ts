@@ -18,6 +18,8 @@ export interface TransferOption {
   topPick: Candidate
   /** Up to 3 ranked alternatives that pass all constraints. */
   alternatives: Candidate[]
+  /** Top 10 constraint-passing candidates — passed to the model for ranking (step 6). */
+  candidatesForModel: Candidate[]
   /** Constraint violations that caused a replan, for the agent trace (D8.4). */
   replans: string[]
 }
@@ -81,7 +83,7 @@ function eligibleCandidates(
 function pickValid(
   candidates: Candidate[],
   squadByClub: Map<number, number>,
-  limit = 4,
+  limit = 10,
 ): { valid: Candidate[]; replans: string[] } {
   const valid: Candidate[] = []
   const replans: string[] = []
@@ -150,7 +152,7 @@ function oneTransferPlan(
   return {
     save: false,
     transfers: [
-      { sell: sc, sellingPrice: sp, topPick, alternatives: valid.slice(1, 4), replans },
+      { sell: sc, sellingPrice: sp, topPick, alternatives: valid.slice(1, 4), candidatesForModel: valid, replans },
     ],
     trace,
   }
@@ -205,6 +207,7 @@ function twoTransferPlan(
   let topPick1: Candidate | null = null
   let alts0: Candidate[] = []
   let alts1: Candidate[] = []
+  let t2ModelCandidates: Candidate[] = []
   const replans0: string[] = []
   const replans1: string[] = []
 
@@ -248,6 +251,7 @@ function twoTransferPlan(
     topPick0 = c0
     topPick1 = valid1[0]
     alts1 = valid1.slice(1, 4)
+    t2ModelCandidates = valid1
     replans1.push(...rp1)
     trace.push(`  T2 budget with ${c0.player.web_name}: £${(budget1 / 10).toFixed(1)}m, ${raw1.length} candidates`)
     break
@@ -258,14 +262,16 @@ function twoTransferPlan(
     return oneTransferPlan(sc0, ctx, trace)
   }
 
-  // Alternatives for T1: next valid picks (not topPick0) under base club constraint
+  // Alternatives and candidatesForModel for T1: top picks under base club constraint
+  const t1ModelCandidates: Candidate[] = [topPick0]
   for (const c0 of raw0) {
-    if (c0.player.id === topPick0.player.id) continue
+    if (t1ModelCandidates.length >= 10) break
+    if (t1ModelCandidates.some(c => c.player.id === c0.player.id)) continue
     const count = clubBase.get(c0.player.team) ?? 0
     if (count >= 3) continue
-    alts0.push(c0)
-    if (alts0.length >= 3) break
+    t1ModelCandidates.push(c0)
   }
+  alts0 = t1ModelCandidates.slice(1, 4)
 
   if (replans0.length) trace.push(`  T1 phase 5 replans: ${replans0.join('; ')}`)
   if (replans1.length) trace.push(`  T2 phase 5 replans: ${replans1.join('; ')}`)
@@ -288,10 +294,10 @@ function twoTransferPlan(
 
   const transfers: TransferOption[] = []
   if (t0Improves) {
-    transfers.push({ sell: sc0, sellingPrice: sp0, topPick: topPick0, alternatives: alts0, replans: replans0 })
+    transfers.push({ sell: sc0, sellingPrice: sp0, topPick: topPick0, alternatives: alts0, candidatesForModel: t1ModelCandidates, replans: replans0 })
   }
   if (t1Improves) {
-    transfers.push({ sell: sc1, sellingPrice: sp1, topPick: topPick1, alternatives: alts1, replans: replans1 })
+    transfers.push({ sell: sc1, sellingPrice: sp1, topPick: topPick1, alternatives: alts1, candidatesForModel: t2ModelCandidates, replans: replans1 })
   }
 
   return { save: false, transfers, trace }

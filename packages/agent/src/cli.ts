@@ -4,6 +4,7 @@ import { loadContext } from './context.js'
 import { scorePlayer } from './analysis/score.js'
 import { findWeakSpots } from './analysis/weakspot.js'
 import { buildTransferPlan } from './analysis/candidates.js'
+import { rankWithModel } from './analysis/rank.js'
 import type { ScoreBreakdown } from './analysis/score.js'
 import type { Player } from './fpl/types.js'
 
@@ -127,44 +128,69 @@ for (const { player, score, squadRank } of weakspots.whySellContext) {
 
 console.log(`\nLoaded, scored, and ranked in ${elapsed}s`)
 
-// ── Phase 4+5+6: Candidates, constraints, transfer plan ─────────────────────
+// ── Phase 4+5: Candidates and constraints ────────────────────────────────────
 const plan = buildTransferPlan(weakspots, ctx)
+
+// ── Phase 6: Model ranking ────────────────────────────────────────────────────
+console.log(`\nRanking with model…`)
+const ranked = await rankWithModel(plan, ctx)
 
 console.log(`\n── Transfer Plan ──`)
 
-if (plan.save) {
-  console.log(`\n  ✓ SAVE your transfer — ${plan.saveReason}`)
+if (ranked.save) {
+  console.log(`\n  ✓ SAVE your transfer`)
+  if (ranked.saveReason) console.log(`     Reason: ${ranked.saveReason}`)
+  if (ranked.bestOptionForComparison) {
+    const boc = ranked.bestOptionForComparison
+    console.log(`     Best option if you want to move: ${boc.player.web_name} — ${boc.reason}`)
+  }
 } else {
-  for (const [ti, opt] of plan.transfers.entries()) {
-    const spStr = (opt.sellingPrice / 10).toFixed(1)
-    const posStr = POS_FULL[opt.sell.player.element_type]
-    console.log(`\n  T${ti + 1}: Sell ${opt.sell.player.web_name} (${posStr}, selling at £${spStr}m)`)
+  for (const [ti, card] of ranked.transfers.entries()) {
+    const spStr = (card.sellingPrice / 10).toFixed(1)
+    const posStr = POS_FULL[card.sell.player.element_type]
+    console.log(`\n  T${ti + 1}: Sell ${card.sell.player.web_name} (${posStr}, selling at £${spStr}m)`)
+    if (card.whySell) console.log(`       Why sell: ${card.whySell}`)
+    if (card.swapReason) console.log(`       Case:     ${card.swapReason}`)
 
-    const tp = opt.topPick
-    const budget = (opt.sellingPrice + ctx.bank) / 10
+    const tp = card.topPick
+    const budget = (card.sellingPrice + ctx.bank) / 10
     console.log(
-      `      Top pick:   ${tp.player.web_name.padEnd(18)} £${(tp.player.now_cost / 10).toFixed(1)}m  ` +
+      `\n      Top pick:   ${tp.player.web_name.padEnd(18)} £${(tp.player.now_cost / 10).toFixed(1)}m  ` +
         `3GW: ${tp.score.total.toFixed(1)} pts  val: ${tp.valueScore.toFixed(2)} pts/£m` +
         `  [budget £${budget.toFixed(1)}m]`,
     )
+    if (card.topPickReason) console.log(`                  ${card.topPickReason}`)
 
-    if (opt.alternatives.length > 0) {
-      console.log(`      Alternatives:`)
-      for (const alt of opt.alternatives) {
+    const why = card.topPickWhy
+    if (why.form || why.fixtures || why.price || why.risks) {
+      console.log(`        Form:     ${why.form}`)
+      console.log(`        Fixtures: ${why.fixtures}`)
+      console.log(`        Price:    ${why.price}`)
+      console.log(`        Risks:    ${why.risks}`)
+    }
+
+    if (card.alternatives.length > 0) {
+      console.log(`\n      Alternatives:`)
+      for (const alt of card.alternatives) {
+        const p = alt.candidate.player
         console.log(
-          `        ${alt.player.web_name.padEnd(18)} £${(alt.player.now_cost / 10).toFixed(1)}m  ` +
-            `3GW: ${alt.score.total.toFixed(1)} pts  val: ${alt.valueScore.toFixed(2)} pts/£m`,
+          `        ${p.web_name.padEnd(18)} £${(p.now_cost / 10).toFixed(1)}m  ` +
+            `3GW: ${alt.candidate.score.total.toFixed(1)} pts  val: ${alt.candidate.valueScore.toFixed(2)} pts/£m`,
         )
+        if (alt.reason) console.log(`          ${alt.reason}`)
       }
     }
 
-    if (opt.replans.length > 0) {
-      console.log(`      [replans: ${opt.replans.join('; ')}]`)
+    if (card.replans.length > 0) {
+      console.log(`      [replans: ${card.replans.join('; ')}]`)
     }
   }
 }
 
-console.log(`\n── Agent trace (Phase 4+5) ──`)
-for (const line of plan.trace) {
+console.log(`\n── Agent trace ──`)
+for (const line of ranked.trace) {
   console.log(`  ${line}`)
 }
+
+console.log(`\n── Token usage ──`)
+console.log(`  Input: ${ranked.usage.inputTokens} | Output: ${ranked.usage.outputTokens} | Total: ${ranked.usage.inputTokens + ranked.usage.outputTokens}`)
