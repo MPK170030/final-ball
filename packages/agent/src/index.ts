@@ -1,4 +1,8 @@
 export { FplClient, FplError } from './fpl/client.js'
+export { buildTransferPlan } from './analysis/candidates.js'
+export type { Candidate, TransferOption, TransferPlanResult } from './analysis/candidates.js'
+export { findWeakSpots } from './analysis/weakspot.js'
+export type { PlayerScore, WeakspotResult } from './analysis/weakspot.js'
 export { MemoryCacheAdapter } from './fpl/cache.js'
 export type { CacheAdapter } from './fpl/cache.js'
 export {

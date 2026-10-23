@@ -3,6 +3,7 @@ import { MemoryCacheAdapter } from './fpl/cache.js'
 import { loadContext } from './context.js'
 import { scorePlayer } from './analysis/score.js'
 import { findWeakSpots } from './analysis/weakspot.js'
+import { buildTransferPlan } from './analysis/candidates.js'
 import type { ScoreBreakdown } from './analysis/score.js'
 import type { Player } from './fpl/types.js'
 
@@ -125,3 +126,45 @@ for (const { player, score, squadRank } of weakspots.whySellContext) {
 }
 
 console.log(`\nLoaded, scored, and ranked in ${elapsed}s`)
+
+// ── Phase 4+5+6: Candidates, constraints, transfer plan ─────────────────────
+const plan = buildTransferPlan(weakspots, ctx)
+
+console.log(`\n── Transfer Plan ──`)
+
+if (plan.save) {
+  console.log(`\n  ✓ SAVE your transfer — ${plan.saveReason}`)
+} else {
+  for (const [ti, opt] of plan.transfers.entries()) {
+    const spStr = (opt.sellingPrice / 10).toFixed(1)
+    const posStr = POS_FULL[opt.sell.player.element_type]
+    console.log(`\n  T${ti + 1}: Sell ${opt.sell.player.web_name} (${posStr}, selling at £${spStr}m)`)
+
+    const tp = opt.topPick
+    const budget = (opt.sellingPrice + ctx.bank) / 10
+    console.log(
+      `      Top pick:   ${tp.player.web_name.padEnd(18)} £${(tp.player.now_cost / 10).toFixed(1)}m  ` +
+        `3GW: ${tp.score.total.toFixed(1)} pts  val: ${tp.valueScore.toFixed(2)} pts/£m` +
+        `  [budget £${budget.toFixed(1)}m]`,
+    )
+
+    if (opt.alternatives.length > 0) {
+      console.log(`      Alternatives:`)
+      for (const alt of opt.alternatives) {
+        console.log(
+          `        ${alt.player.web_name.padEnd(18)} £${(alt.player.now_cost / 10).toFixed(1)}m  ` +
+            `3GW: ${alt.score.total.toFixed(1)} pts  val: ${alt.valueScore.toFixed(2)} pts/£m`,
+        )
+      }
+    }
+
+    if (opt.replans.length > 0) {
+      console.log(`      [replans: ${opt.replans.join('; ')}]`)
+    }
+  }
+}
+
+console.log(`\n── Agent trace (Phase 4+5) ──`)
+for (const line of plan.trace) {
+  console.log(`  ${line}`)
+}

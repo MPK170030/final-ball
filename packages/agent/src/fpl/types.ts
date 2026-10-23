@@ -275,6 +275,10 @@ export interface PickItem {
   multiplier: number
   is_captain: boolean
   is_vice_captain: boolean
+  /** What you'd receive if you sold now (tenths of £m). Present in the picks API response. */
+  selling_price?: number
+  /** What you paid when you bought (tenths of £m). Present in the picks API response. */
+  purchase_price?: number
 }
 
 export interface AutomaticSub {
