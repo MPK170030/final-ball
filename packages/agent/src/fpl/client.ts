@@ -1,5 +1,5 @@
-import type { Bootstrap, Entry, EntryHistory, EntryPicks, Fixture, LeagueStandingsResponse } from './types'
-import type { CacheAdapter } from './cache'
+import type { Bootstrap, Entry, EntryHistory, EntryPicks, Fixture, LeagueStandingsResponse } from './types.js'
+import type { CacheAdapter } from './cache.js'
 
 const FPL_BASE = 'https://fantasy.premierleague.com/api'
 
