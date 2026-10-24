@@ -45,6 +45,12 @@ const config: Config = {
         negative: 'var(--negative)',
         pending: 'var(--pending)',
         warning: 'var(--warning)',
+        'fdr-2': 'var(--fdr-2)',
+        'fdr-3': 'var(--fdr-3)',
+        'fdr-4': 'var(--fdr-4)',
+        'fdr-5': 'var(--fdr-5)',
+        'fdr-5-foreground': 'var(--fdr-5-foreground)',
+        scrim: 'var(--scrim)',
       },
       borderRadius: {
         sm: '6px',

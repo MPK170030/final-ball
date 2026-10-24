@@ -1,6 +1,59 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { SignOutButton } from '@/components/sign-out-button'
+import { FplClient, MemoryCacheAdapter, getActiveGameweek, isDeadlinePassed } from '@finalball/agent'
+import type { TraceStep } from '@finalball/agent'
+import { BriefClient } from './brief-client'
+import type { BriefData, BriefCard } from '@/components/brief/types'
+
+export const dynamic = 'force-dynamic'
+
+// ── Load FPL data (best-effort) ───────────────────────────────────────────────
+
+interface FplPageData {
+  gameweek: number
+  deadlineMs: number | null
+  freeTransfers: number
+  bankTenths: number
+  deadlinePassed: boolean
+}
+
+async function loadFplData(teamId: number): Promise<FplPageData> {
+  try {
+    const client = new FplClient({ cache: new MemoryCacheAdapter() })
+    const bootstrap = await client.getBootstrap()
+    const gw = getActiveGameweek(bootstrap)
+    const [picks, history] = await Promise.all([
+      client.getEntryPicks(teamId, gw),
+      client.getEntryHistory(teamId),
+    ])
+    const event = bootstrap.events.find(e => e.id === gw)
+
+    // Derive free transfers: count unused transfers from past GWs
+    const chipByEvent = new Map(history.chips.map(c => [c.event, c.name]))
+    const pastEvents = history.current.filter(e => e.event < gw).sort((a, b) => a.event - b.event)
+    let ft = 1
+    for (const ev of pastEvents) {
+      const chip = chipByEvent.get(ev.event)
+      if (chip === 'wildcard') { ft = 1; continue }
+      if (chip === 'freehit') continue
+      const used = ev.event_transfers
+      ft = Math.min(2, ft - used + 1)
+      if (ft < 1) ft = 1
+    }
+
+    return {
+      gameweek: gw,
+      deadlineMs: event ? event.deadline_time_epoch * 1000 : null,
+      freeTransfers: ft,
+      bankTenths: picks.entry_history.bank,
+      deadlinePassed: isDeadlinePassed(bootstrap, gw),
+    }
+  } catch {
+    return { gameweek: 1, deadlineMs: null, freeTransfers: 1, bankTenths: 0, deadlinePassed: false }
+  }
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function BriefPage() {
   const supabase = await createClient()
@@ -17,6 +70,7 @@ export default async function BriefPage() {
 
   if (!profile?.team_id) redirect('/onboarding')
 
+  const teamId = profile.team_id
   const teamName = profile.team_name ?? 'Your team'
   const displayName =
     (profile.manager_name as string | null) ??
@@ -25,47 +79,62 @@ export default async function BriefPage() {
     ''
   const initial = displayName[0]?.toUpperCase() ?? '?'
 
+  // Load in parallel: FPL data + latest brief + today's usage
+  const today = new Date().toISOString().slice(0, 10)
+  const [fplData, latestBriefRes, usageRes] = await Promise.all([
+    loadFplData(teamId),
+    supabase
+      .from('briefs')
+      .select('id, gameweek, version, status, trace, generated_at')
+      .eq('user_id', user.id)
+      .eq('status', 'ready')
+      .order('gameweek', { ascending: false })
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('generation_usage')
+      .select('count')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .maybeSingle(),
+  ])
+
+  const briefRow = latestBriefRes.data
+  const usageToday = usageRes.data?.count ?? 0
+  const gameweek = fplData.gameweek
+
+  // Load cards if we have a brief
+  let briefData: BriefData | null = null
+  if (briefRow) {
+    const { data: cardRows } = await supabase
+      .from('cards')
+      .select('id, type, position, payload')
+      .eq('brief_id', briefRow.id)
+      .order('position', { ascending: true })
+
+    briefData = {
+      id: briefRow.id,
+      gameweek: briefRow.gameweek,
+      version: briefRow.version,
+      generatedAt: briefRow.generated_at ?? new Date().toISOString(),
+      trace: (briefRow.trace as TraceStep[]) ?? [],
+      cards: (cardRows ?? []) as BriefCard[],
+    }
+  }
+
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/* Nav */}
-      <header className="border-border flex items-center justify-between border-b px-4 py-3">
-        <span className="text-body-strong text-foreground">Final Ball</span>
-        <div className="flex items-center gap-3">
-          <div
-            className="bg-secondary text-foreground flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold"
-            aria-hidden="true"
-          >
-            {initial}
-          </div>
-          <SignOutButton />
-        </div>
-      </header>
-
-      {/* Brief */}
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-4 px-4 py-8">
-        <div className="space-y-0.5">
-          <h1 className="text-title text-foreground">{teamName}</h1>
-          <p className="text-small text-muted-foreground">Your weekly brief</p>
-        </div>
-
-        {/* Placeholder — brief cards ship Thursday */}
-        <div className="border-border bg-card space-y-2 rounded-lg border px-6 py-10 text-center">
-          <p className="text-body-strong text-foreground">Generating your first brief…</p>
-          <p className="text-small text-muted-foreground">
-            Transfer and captain suggestions arrive 23 October.
-          </p>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-border border-t px-4 py-4 text-center">
-        <p className="text-small text-muted-foreground">
-          Not affiliated with or endorsed by the Premier League or Fantasy Premier League.{' '}
-          <a href="/privacy" className="underline underline-offset-2 hover:text-foreground">
-            Privacy
-          </a>
-        </p>
-      </footer>
-    </div>
+    <BriefClient
+      initialBrief={briefData}
+      gameweek={gameweek}
+      deadlineMs={fplData.deadlineMs}
+      freeTransfers={fplData.freeTransfers}
+      bankTenths={fplData.bankTenths}
+      usageToday={usageToday}
+      isDeadlinePassed={fplData.deadlinePassed}
+      displayName={displayName}
+      initial={initial}
+      teamName={teamName}
+    />
   )
 }
