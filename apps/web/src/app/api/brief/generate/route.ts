@@ -213,6 +213,7 @@ export async function POST(_req: NextRequest) {
       await send({ status: 'ready', briefId })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
+      console.error('[brief/generate] pipeline error', { teamId, briefId, msg }, err)
       await send({ status: 'error', message: msg })
       if (briefId) {
         void serviceClient

@@ -321,7 +321,7 @@ export function BriefClient({
                   className="gap-1.5"
                 >
                   <RefreshCwIcon className="size-3.5" aria-hidden="true" />
-                  {brief ? 'New brief' : 'Generate brief'}
+                  {genStatus.kind === 'error' ? 'Try again' : brief ? 'New brief' : 'Generate brief'}
                   {!isDeadlinePassed && (
                     <span className="font-mono text-xs opacity-70">
                       {DAILY_CAP - usageToday} left today

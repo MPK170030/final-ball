@@ -203,6 +203,36 @@ export interface Database {
         }
         Relationships: []
       }
+      sample_brief: {
+        Row: {
+          key: string
+          gameweek: number
+          version: number
+          trace: unknown
+          cards: unknown
+          meta: unknown
+          generated_at: string
+        }
+        Insert: {
+          key?: string
+          gameweek: number
+          version?: number
+          trace?: unknown
+          cards?: unknown
+          meta?: unknown
+          generated_at?: string
+        }
+        Update: {
+          key?: string
+          gameweek?: number
+          version?: number
+          trace?: unknown
+          cards?: unknown
+          meta?: unknown
+          generated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
