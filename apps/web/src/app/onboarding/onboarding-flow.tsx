@@ -439,9 +439,10 @@ interface ConfirmViewProps {
   onConfirm: () => void
   onNotMe: () => void
   isConfirming: boolean
+  error: string | null
 }
 
-function ConfirmView({ summary, onConfirm, onNotMe, isConfirming }: ConfirmViewProps) {
+function ConfirmView({ summary, onConfirm, onNotMe, isConfirming, error }: ConfirmViewProps) {
   return (
     <div className="w-full max-w-sm space-y-6">
       <div className="space-y-1">
@@ -475,6 +476,12 @@ function ConfirmView({ summary, onConfirm, onNotMe, isConfirming }: ConfirmViewP
           </div>
         </dl>
       </div>
+
+      {error && (
+        <p role="alert" className="text-small text-negative font-medium text-center">
+          {error}
+        </p>
+      )}
 
       <div className="space-y-3">
         <button
@@ -556,6 +563,7 @@ export function OnboardingFlow({ countries }: { countries: string[] }) {
   const [linkError, setLinkError] = useState<string | null>(null)
   const [isLinkLoading, setIsLinkLoading] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
 
   // D9.7: restore state from sessionStorage on mount (survives tab switches and reloads)
   useEffect(() => {
@@ -703,6 +711,7 @@ export function OnboardingFlow({ countries }: { countries: string[] }) {
   async function handleConfirm() {
     if (!teamSummary) return
     setIsConfirming(true)
+    setConfirmError(null)
     try {
       const res = await fetch('/api/team/confirm', {
         method: 'POST',
@@ -720,13 +729,14 @@ export function OnboardingFlow({ countries }: { countries: string[] }) {
           setStep('already-linked')
           return
         }
-        throw new Error(data.message ?? 'Failed to confirm team')
+        setConfirmError(data.message ?? 'Failed to confirm team. Please try again.')
+        return
       }
       clearOnboardingState()
       router.push('/brief')
       router.refresh()
-    } catch (err) {
-      console.error('Confirm error:', err)
+    } catch {
+      setConfirmError('Could not connect to the server. Check your connection and try again.')
     } finally {
       setIsConfirming(false)
     }
@@ -771,6 +781,7 @@ export function OnboardingFlow({ countries }: { countries: string[] }) {
             onConfirm={handleConfirm}
             onNotMe={() => setStep('find')}
             isConfirming={isConfirming}
+            error={confirmError}
           />
         )}
 

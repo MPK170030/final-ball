@@ -1,10 +1,7 @@
-import { FplClient } from './fpl/client.js'
-import { MemoryCacheAdapter } from './fpl/cache.js'
+import { generateBrief, FplClient, MemoryCacheAdapter } from './index.js'
 import { loadContext } from './context.js'
 import { scorePlayer } from './analysis/score.js'
 import { findWeakSpots } from './analysis/weakspot.js'
-import { buildTransferPlan } from './analysis/candidates.js'
-import { rankWithModel } from './analysis/rank.js'
 import type { ScoreBreakdown } from './analysis/score.js'
 import type { Player } from './fpl/types.js'
 
@@ -18,6 +15,7 @@ if (!teamId || isNaN(teamId)) {
 }
 
 const POS: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
+const POS_FULL = POS
 
 const client = new FplClient({ cache: new MemoryCacheAdapter() })
 
@@ -32,7 +30,7 @@ const scored: Array<{ player: Player; score: ScoreBreakdown; position: number }>
   squadPlayers.map((player, i) => ({
     player,
     score: scorePlayer(player, allFixtures, bootstrap),
-    position: i + 1,  // 1–15
+    position: i + 1,
   }))
 
 const elapsed = ((Date.now() - t0) / 1000).toFixed(2)
@@ -42,11 +40,9 @@ console.log(`\n── GW${gameweek.id}: ${gameweek.name} ──`)
 console.log(`Deadline : ${new Date(gameweek.deadline_time).toUTCString()}`)
 console.log(`Bank     : £${(bank / 10).toFixed(1)}m  |  Free transfers: ${freeTransfers}`)
 
-// GW labels from the score breakdown (first player has the GW IDs)
 const gwIds = scored[0]?.score.perGw.map(g => `GW${g.gwId}`) ?? ['GW?', 'GW?', 'GW?']
 const [gw1Label, gw2Label, gw3Label] = gwIds
 
-// Squad table — sorted by total score ascending (weakest first)
 const sorted = [...scored].sort((a, b) => a.score.total - b.score.total)
 
 const header = [
@@ -102,8 +98,6 @@ for (const [rank, { player, score, position }] of sorted.entries()) {
 // ── Weak spots ──────────────────────────────────────────────────────────────
 const weakspots = findWeakSpots(squadPlayers, picks.picks, allFixtures, bootstrap, freeTransfers)
 
-const POS_FULL: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
-
 console.log(`\n── Weak spots (${freeTransfers} free transfer${freeTransfers > 1 ? 's' : ''}) ──`)
 
 console.log(`\nSell candidate${weakspots.sellCandidates.length > 1 ? 's' : ''}:`)
@@ -127,25 +121,22 @@ for (const { player, score, squadRank } of weakspots.whySellContext) {
 }
 
 console.log(`\nLoaded, scored, and ranked in ${elapsed}s`)
+console.log(`\nRanking with model + picking captain…`)
 
-// ── Phase 4+5: Candidates and constraints ────────────────────────────────────
-const plan = buildTransferPlan(weakspots, ctx)
-
-// ── Phase 6: Model ranking ────────────────────────────────────────────────────
-console.log(`\nRanking with model…`)
-const ranked = await rankWithModel(plan, ctx)
+// ── Full pipeline (reuses the warm client cache) ─────────────────────────────
+const result = await generateBrief(teamId, { client })
 
 console.log(`\n── Transfer Plan ──`)
 
-if (ranked.save) {
+if (result.save) {
   console.log(`\n  ✓ SAVE your transfer`)
-  if (ranked.saveReason) console.log(`     Reason: ${ranked.saveReason}`)
-  if (ranked.bestOptionForComparison) {
-    const boc = ranked.bestOptionForComparison
+  if (result.saveReason) console.log(`     Reason: ${result.saveReason}`)
+  if (result.bestOptionForComparison) {
+    const boc = result.bestOptionForComparison
     console.log(`     Best option if you want to move: ${boc.player.web_name} — ${boc.reason}`)
   }
 } else {
-  for (const [ti, card] of ranked.transfers.entries()) {
+  for (const [ti, card] of result.transfers.entries()) {
     const spStr = (card.sellingPrice / 10).toFixed(1)
     const posStr = POS_FULL[card.sell.player.element_type]
     console.log(`\n  T${ti + 1}: Sell ${card.sell.player.web_name} (${posStr}, selling at £${spStr}m)`)
@@ -187,11 +178,22 @@ if (ranked.save) {
   }
 }
 
+// ── Captain ──────────────────────────────────────────────────────────────────
+const { captain: cap } = result
+console.log(`\n── Captain ──`)
+console.log(`  Captain:  ${cap.captain.player.web_name} — ${cap.captain.reason}`)
+console.log(`  VC:       ${cap.vc.player.web_name} — ${cap.vc.reason}`)
+if (cap.alternatives.length > 0) {
+  console.log(`  Alts:     ${cap.alternatives.map(a => `${a.player.web_name} — ${a.reason}`).join('\n            ')}`)
+}
+
+// ── Trace ─────────────────────────────────────────────────────────────────────
 console.log(`\n── Agent trace ──`)
-for (const [i, step] of ranked.trace.entries()) {
-  const prefix = step.replan ? '  ↩ Replan' : `  [${i + 1}]`
+for (const step of result.trace) {
+  const prefix = step.replan ? '  ↩ Replan' : `  [${step.n}]`
   console.log(`${prefix} ${step.title}: ${step.text}`)
 }
 
 console.log(`\n── Token usage ──`)
-console.log(`  Input: ${ranked.usage.inputTokens} | Output: ${ranked.usage.outputTokens} | Total: ${ranked.usage.inputTokens + ranked.usage.outputTokens}`)
+const u = result.meta.usage
+console.log(`  Input: ${u.inputTokens} | Output: ${u.outputTokens} | Total: ${u.inputTokens + u.outputTokens}`)

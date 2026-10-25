@@ -314,9 +314,11 @@ export async function rankWithModel(
 
   let response: Anthropic.Message
   try {
+    // 2-transfer prompts need more room — each card has 4 why fields + 3 alts
+    const maxTokens = plan.transfers.length > 1 ? 2048 : 1024
     response = await client.messages.create({
       model,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       system: SYSTEM_PROMPT,
       tools: [PLAN_TOOL],
       tool_choice: { type: 'tool', name: 'submit_transfer_plan' },
