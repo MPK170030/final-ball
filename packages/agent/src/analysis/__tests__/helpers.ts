@@ -7,6 +7,8 @@ export function makePlayer(opts: {
   now_cost: number
   ep_next?: string | null
   form?: string
+  /** Defaults to the same value as form when omitted. Pass explicitly to test form ≠ ppg scenarios. */
+  points_per_game?: string
   chance_of_playing_next_round?: number | null
   status?: Player['status']
   web_name?: string
@@ -33,7 +35,7 @@ export function makePlayer(opts: {
     news_added: null,
     now_cost: opts.now_cost,
     photo: '',
-    points_per_game: opts.form ?? '4.0',
+    points_per_game: opts.points_per_game ?? opts.form ?? '4.0',
     second_name: name,
     selected_by_percent: '10.0',
     special: false,
