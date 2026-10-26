@@ -12,9 +12,22 @@ export function getPreviousGameweek(bootstrap: Bootstrap): number | null {
   return bootstrap.events.find((e) => e.is_previous)?.id ?? null
 }
 
-/** Returns the current GW if active, otherwise the next GW, otherwise 1. */
+/**
+ * Returns the gameweek to plan for. While GW N is live but its deadline has
+ * already passed, return GW N+1 (if FPL has set is_next) so users can plan
+ * ahead instead of staring at a locked brief.
+ */
 export function getActiveGameweek(bootstrap: Bootstrap): number {
-  return getCurrentGameweek(bootstrap) ?? getNextGameweek(bootstrap) ?? 1
+  const current = bootstrap.events.find((e) => e.is_current)
+  if (current) {
+    const deadlinePassed = Date.now() > current.deadline_time_epoch * 1000
+    if (deadlinePassed) {
+      const next = bootstrap.events.find((e) => e.is_next)
+      if (next) return next.id
+    }
+    return current.id
+  }
+  return getNextGameweek(bootstrap) ?? 1
 }
 
 export function isGameweekFinished(bootstrap: Bootstrap, gw: number): boolean {
