@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
-import { generateBrief, FplClient, MemoryCacheAdapter, getActiveGameweek } from '@finalball/agent'
+import { generateBrief, FplClient, MemoryCacheAdapter, getActiveGameweek, getSquadGameweek } from '@finalball/agent'
 import type { BriefResult } from '@finalball/agent'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -100,12 +100,13 @@ export async function POST() {
     // Load bootstrap to get gameweek + deadline
     const bootstrap = await fplClient.getBootstrap()
     const gameweek = getActiveGameweek(bootstrap)
+    const squadGw = getSquadGameweek(bootstrap)
     const event = bootstrap.events.find(e => e.id === gameweek)
     const deadlineMs = event ? event.deadline_time_epoch * 1000 : null
 
     // Load picks + history for FT count and bank
     const [picks, history, entry] = await Promise.all([
-      fplClient.getEntryPicks(teamId, gameweek),
+      fplClient.getEntryPicks(teamId, squadGw),
       fplClient.getEntryHistory(teamId),
       fplClient.getEntry(teamId),
     ])

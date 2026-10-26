@@ -21,6 +21,7 @@ export {
   getNextGameweek,
   getPreviousGameweek,
   getActiveGameweek,
+  getSquadGameweek,
   isGameweekFinished,
   isDeadlinePassed,
 } from './fpl/helpers.js'

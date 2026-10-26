@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { FplClient, MemoryCacheAdapter, getActiveGameweek, isDeadlinePassed } from '@finalball/agent'
+import { FplClient, MemoryCacheAdapter, getActiveGameweek, getSquadGameweek, isDeadlinePassed } from '@finalball/agent'
 import type { TraceStep } from '@finalball/agent'
 import { BriefClient } from './brief-client'
 import type { BriefData, BriefCard } from '@/components/brief/types'
@@ -22,8 +22,9 @@ async function loadFplData(teamId: number): Promise<FplPageData> {
     const client = new FplClient({ cache: new MemoryCacheAdapter() })
     const bootstrap = await client.getBootstrap()
     const gw = getActiveGameweek(bootstrap)
+    const squadGw = getSquadGameweek(bootstrap)
     const [picks, history] = await Promise.all([
-      client.getEntryPicks(teamId, gw),
+      client.getEntryPicks(teamId, squadGw),
       client.getEntryHistory(teamId),
     ])
     const event = bootstrap.events.find(e => e.id === gw)
