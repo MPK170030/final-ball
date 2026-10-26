@@ -117,20 +117,30 @@ export async function POST(_req: NextRequest) {
     }
   }
 
-  // Concurrent generation guard
+  // Concurrent generation guard — also recover from rows stuck in 'generating'
+  // if Vercel killed the function at maxDuration before the catch block ran.
+  const serviceClient = createServiceClient()
+  const staleCutoff = new Date(Date.now() - 360_000).toISOString() // 6 min > maxDuration
+
   const { data: generating } = await supabase
     .from('briefs')
-    .select('id')
+    .select('id, created_at')
     .eq('user_id', user.id)
     .eq('status', 'generating')
     .maybeSingle()
 
   if (generating) {
-    return NextResponse.json({ error: 'already_generating' }, { status: 409 })
+    if (generating.created_at >= staleCutoff) {
+      return NextResponse.json({ error: 'already_generating' }, { status: 409 })
+    }
+    // Stale — clean it up so the new attempt can proceed
+    await serviceClient
+      .from('briefs')
+      .update({ status: 'error', error: 'Generation timed out' })
+      .eq('id', generating.id)
   }
 
   // ── SSE setup ───────────────────────────────────────────────────────────────
-  const serviceClient = createServiceClient()
   const encoder = new TextEncoder()
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
   const writer = writable.getWriter()
