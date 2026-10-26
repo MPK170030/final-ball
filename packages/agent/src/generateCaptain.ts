@@ -89,22 +89,23 @@ function postTransferStartingPlayers(
 function fixtureDisplay(player: Player, ctx: AgentContext): string {
   const teamById = new Map(ctx.bootstrap.teams.map(t => [t.id, t]))
   const [gwId] = getUpcomingGwIds(ctx.bootstrap, 1)
-  if (!gwId) return 'TBC'
+  if (!gwId) return 'no fixture'
 
   const matches = ctx.allFixtures.filter(
     f => f.event === gwId && (f.team_h === player.team || f.team_a === player.team),
   )
-  if (matches.length === 0) return 'BLK'
+  if (matches.length === 0) return 'no fixture this week'
 
   const segments = matches.map(m => {
     const isHome = m.team_h === player.team
     const oppId = isHome ? m.team_a : m.team_h
     const opp = teamById.get(oppId)?.short_name ?? '???'
     const fdr = isHome ? m.team_h_difficulty : m.team_a_difficulty
-    return `${opp} (${isHome ? 'H' : 'A'}) FDR ${fdr}`
+    const difficulty = fdr <= 2 ? 'easy' : fdr === 3 ? 'average' : 'tough'
+    return `${isHome ? 'home' : 'away'} vs ${opp} (${difficulty})`
   })
 
-  return matches.length > 1 ? `DGW: ${segments.join(' + ')}` : `vs ${segments[0]}`
+  return matches.length > 1 ? `plays twice: ${segments.join(' + ')}` : segments[0]!
 }
 
 const SHORTLIST_SIZE = 8
@@ -145,15 +146,15 @@ function buildPrompt(
     lines.push('No transfer suggested — squad is unchanged.', '')
   }
 
-  lines.push('### Candidates (starting XI, ranked by ep_next — GKs excluded)')
+  lines.push('### Candidates (starting XI, ranked by projected points — GKs excluded)')
   for (const [i, c] of candidates.entries()) {
     const p = c.player
     const avail =
       p.chance_of_playing_next_round !== null
-        ? `${p.chance_of_playing_next_round}%`
-        : '100%'
+        ? `${p.chance_of_playing_next_round}% fit`
+        : 'fully fit'
     lines.push(
-      `${i + 1}. ${p.web_name} | ${POS[p.element_type] ?? '?'} | £${(p.now_cost / 10).toFixed(1)}m | ep_next ${c.epNext.toFixed(1)} | form ${p.form} | ${c.fixDisplay} | avail ${avail}${p.news ? ` | news: ${p.news}` : ''}`,
+      `${i + 1}. ${p.web_name} | ${POS[p.element_type] ?? '?'} | £${(p.now_cost / 10).toFixed(1)}m | projected ${c.epNext.toFixed(1)} pts | recent form ${p.form} | ${c.fixDisplay} | ${avail}${p.news ? ` | news: ${p.news}` : ''}`,
     )
   }
 
@@ -229,15 +230,14 @@ const CAPTAIN_TOOL: Anthropic.Tool = {
   },
 }
 
-const SYSTEM_PROMPT = `You are Final Ball's captain analyst for Fantasy Premier League (FPL). Given the starting XI's best players ranked by expected points, pick the captain and vice-captain for this gameweek.
+const SYSTEM_PROMPT = `You are Final Ball's captain analyst for Fantasy Premier League (FPL). Given the starting XI's best players ranked by projected points, pick the captain and vice-captain for this gameweek.
 
-FPL glossary:
-- ep_next: FPL's expected points next gameweek (fixture difficulty already baked in)
-- form: rolling average pts per game from recent weeks
-- FDR: fixture difficulty rating (1 = easy, 5 = hard)
-- BLK: blank gameweek — no fixture, 0 pts expected
-- DGW: double gameweek — two fixtures, doubles the opportunity
-- availability: chance of playing next round (100% = fit)
+Data reference (internal — do NOT use these labels in your written output):
+- projected pts: expected points for the next match
+- recent form: rolling average points per game from recent weeks
+- easy/average/tough: fixture difficulty
+- plays twice: double gameweek — two matches
+- no fixture: blank gameweek — no match, zero points
 
 Your task:
 1. Pick the captain — the player with the best chance of a big haul this gameweek.
@@ -245,10 +245,11 @@ Your task:
 3. Suggest 1–2 alternatives — safer or differential options worth considering.
 
 Writing rules:
-- One sentence per reason. Use real numbers from the data (ep_next, form, FDR).
-- Speak directly to the manager: "he has", "his fixtures", not "the player shows".
+- One sentence per reason. Use real numbers from the data.
+- Speak directly to the manager: "he has", "his next match", not "the player shows".
+- Plain English only — never write ep_next, FDR, BLK, DGW, or pts/£m. Translate them: "projected 7.1 pts", "easy home match against Wolves", "no game this week", "plays twice this week".
 - why.form: the recent scoring trend and whether it looks sustainable.
-- why.fixture: name the next opponent and rate the matchup quality (use FDR and the opponent name).
+- why.fixture: name the opponent and describe the matchup in plain terms (e.g. "home to struggling Wolves", "tough away trip to Arsenal").
 - why.risks: rotation risk, injury doubts, penalty/set-piece uncertainty. Write "None identified" if clean.`
 
 // ── Name resolver ──────────────────────────────────────────────────────────────

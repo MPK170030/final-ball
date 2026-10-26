@@ -33,9 +33,12 @@ export function FixtureChip({ fdr, opponent, isHome, isDouble, size = 'md' }: Fi
   }
 
   const parts: string[] = []
-  if (opponent) parts.push(opponent)
-  if (isHome !== undefined) parts.push(isHome ? 'H' : 'A')
-  parts.push(String(fdr))
+  if (opponent) {
+    parts.push(opponent)
+    if (isHome !== undefined) parts.push(isHome ? 'H' : 'A')
+  } else {
+    parts.push(String(fdr))
+  }
   if (isDouble) parts.push('×2')
 
   return (

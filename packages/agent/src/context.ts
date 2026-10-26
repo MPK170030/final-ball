@@ -1,6 +1,6 @@
 import type { Bootstrap, Fixture, GameweekEvent, EntryPicks, Player, EntryHistoryItem, EntryChipHistory } from './fpl/types.js'
 import type { FplClient } from './fpl/client.js'
-import { getActiveGameweek } from './fpl/helpers.js'
+import { getActiveGameweek, getSquadGameweek } from './fpl/helpers.js'
 
 export interface AgentContext {
   bootstrap: Bootstrap
@@ -36,7 +36,10 @@ export async function loadContext(teamId: number, client: FplClient): Promise<Ag
   const gameweek = bootstrap.events.find(e => e.id === gwId)
   if (!gameweek) throw new Error(`GW${gwId} not found in bootstrap events`)
 
-  const picks = await client.getEntryPicks(teamId, gwId)
+  // Picks are fetched from the last played GW (is_current), not the planning GW.
+  // When gwId is is_next (deadline passed, planning ahead), is_current is still GW N.
+  const squadGwId = getSquadGameweek(bootstrap)
+  const picks = await client.getEntryPicks(teamId, squadGwId)
   const bank = picks.entry_history.bank
   const freeTransfers = deriveFreeTransfers(history.current, history.chips, gwId)
 

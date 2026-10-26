@@ -88,7 +88,36 @@ describe('scorePlayer', () => {
     const result = scorePlayer(player, FIXTURES_CLUB1, BOOTSTRAP)
 
     // GW8: form * 0.9 * 1.0 = 3.6
+    // maxEp = ppg * 3 * fdrMultiplier(3) = 4.0 * 3 * 0.5 = 6.0; 3.6 < 6.0 → no cap
     expect(result.perGw[0]!.points).toBeCloseTo(3.6)
     expect(result.epNext).toBeCloseTo(3.6)
+  })
+
+  it('caps ep_next and form when a player had one exceptional game far above their ppg', () => {
+    // Reproduces the Henderson scenario: one 12-pt game gives form=12 and high ep_next,
+    // but the player's season ppg is only 3.0. Without the cap they over-rank badly.
+    const player = makePlayer({
+      id: 6,
+      element_type: 3,
+      team: 1,
+      now_cost: 45,
+      form: '12.0',
+      ep_next: '6.0',
+      points_per_game: '3.0',
+    })
+    const result = scorePlayer(player, FIXTURES_CLUB1, BOOTSTRAP)
+
+    // GW8 (FDR 3): maxEp = 3.0 * 3 * fdrMultiplier(3) = 3.0 * 3 * 0.5 = 4.5
+    //   ep_next 6.0 > maxEp 4.5 → capped; points = 4.5
+    expect(result.perGw[0]!.points).toBeCloseTo(4.5)
+
+    // GW9 (FDR 2): cappedForm = min(12, 3*2) = 6.0; blendedForm = 6*0.5 + 3*0.5 = 4.5
+    //   points = 4.5 * fdrMultiplier(2) = 4.5 * 0.75 = 3.375
+    expect(result.perGw[1]!.points).toBeCloseTo(3.375)
+
+    // GW10 (FDR 4): points = 4.5 * fdrMultiplier(4) = 4.5 * 0.25 = 1.125
+    expect(result.perGw[2]!.points).toBeCloseTo(1.125)
+
+    expect(result.total).toBeCloseTo(9.0)
   })
 })

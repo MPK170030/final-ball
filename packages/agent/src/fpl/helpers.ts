@@ -30,6 +30,15 @@ export function getActiveGameweek(bootstrap: Bootstrap): number {
   return getNextGameweek(bootstrap) ?? 1
 }
 
+/**
+ * The GW from which to fetch the current squad (is_current while matches are
+ * live; is_previous once the next GW becomes current). Distinct from
+ * getActiveGameweek, which may return is_next for planning after the deadline.
+ */
+export function getSquadGameweek(bootstrap: Bootstrap): number {
+  return getCurrentGameweek(bootstrap) ?? getPreviousGameweek(bootstrap) ?? 1
+}
+
 export function isGameweekFinished(bootstrap: Bootstrap, gw: number): boolean {
   return bootstrap.events.find((e) => e.id === gw)?.finished ?? false
 }

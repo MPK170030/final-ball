@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { FplClient, MemoryCacheAdapter, getActiveGameweek, isDeadlinePassed } from '@finalball/agent'
+import { FplClient, MemoryCacheAdapter, getActiveGameweek, getSquadGameweek, isDeadlinePassed } from '@finalball/agent'
 import type { TraceStep } from '@finalball/agent'
 import { BriefClient } from './brief-client'
 import type { BriefData, BriefCard } from '@/components/brief/types'
@@ -22,23 +22,28 @@ async function loadFplData(teamId: number): Promise<FplPageData> {
     const client = new FplClient({ cache: new MemoryCacheAdapter() })
     const bootstrap = await client.getBootstrap()
     const gw = getActiveGameweek(bootstrap)
+    const squadGw = getSquadGameweek(bootstrap)
     const [picks, history] = await Promise.all([
-      client.getEntryPicks(teamId, gw),
+      client.getEntryPicks(teamId, squadGw),
       client.getEntryHistory(teamId),
     ])
     const event = bootstrap.events.find(e => e.id === gw)
 
-    // Derive free transfers: count unused transfers from past GWs
+    // Derive free transfers: mirrors deriveFreeTransfers in context.ts
     const chipByEvent = new Map(history.chips.map(c => [c.event, c.name]))
     const pastEvents = history.current.filter(e => e.event < gw).sort((a, b) => a.event - b.event)
     let ft = 1
     for (const ev of pastEvents) {
       const chip = chipByEvent.get(ev.event)
-      if (chip === 'wildcard') { ft = 1; continue }
-      if (chip === 'freehit') continue
-      const used = ev.event_transfers
-      ft = Math.min(2, ft - used + 1)
-      if (ft < 1) ft = 1
+      if (chip === 'wildcard') {
+        ft = 1
+      } else {
+        // freehit squad is restored so those transfers don't count, but the week
+        // still earns the +1 free transfer accumulation
+        const effectiveTransfers = chip === 'freehit' ? 0 : ev.event_transfers
+        const freeUsed = Math.min(ft, effectiveTransfers)
+        ft = Math.min(2, ft - freeUsed + 1)
+      }
     }
 
     return {

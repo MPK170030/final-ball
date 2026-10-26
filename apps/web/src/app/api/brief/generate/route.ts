@@ -117,20 +117,30 @@ export async function POST(_req: NextRequest) {
     }
   }
 
-  // Concurrent generation guard
+  // Concurrent generation guard — also recover from rows stuck in 'generating'
+  // if Vercel killed the function at maxDuration before the catch block ran.
+  const serviceClient = createServiceClient()
+  const staleCutoff = new Date(Date.now() - 360_000).toISOString() // 6 min > maxDuration
+
   const { data: generating } = await supabase
     .from('briefs')
-    .select('id')
+    .select('id, created_at')
     .eq('user_id', user.id)
     .eq('status', 'generating')
     .maybeSingle()
 
   if (generating) {
-    return NextResponse.json({ error: 'already_generating' }, { status: 409 })
+    if (generating.created_at >= staleCutoff) {
+      return NextResponse.json({ error: 'already_generating' }, { status: 409 })
+    }
+    // Stale — clean it up so the new attempt can proceed
+    await serviceClient
+      .from('briefs')
+      .update({ status: 'error', error: 'Generation timed out' })
+      .eq('id', generating.id)
   }
 
   // ── SSE setup ───────────────────────────────────────────────────────────────
-  const serviceClient = createServiceClient()
   const encoder = new TextEncoder()
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
   const writer = writable.getWriter()
@@ -140,7 +150,6 @@ export async function POST(_req: NextRequest) {
   // ── Async generation task ───────────────────────────────────────────────────
   ;(async () => {
     let briefId: string | null = null
-    let success = false
 
     try {
       // Get active gameweek — needed to create the brief row and detect FPL updating
@@ -209,7 +218,14 @@ export async function POST(_req: NextRequest) {
 
       if (updateErr) throw new Error(updateErr.message)
 
-      success = true
+      // Commit usage before sending 'ready' so router.refresh() on the client
+      // sees the updated count (D15.3, D15.5).
+      if (!isFirstBrief) {
+        await serviceClient
+          .from('generation_usage')
+          .upsert({ user_id: user.id, date: today, count: currentUsageCount + 1 })
+      }
+
       await send({ status: 'ready', briefId })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
@@ -222,12 +238,6 @@ export async function POST(_req: NextRequest) {
           .eq('id', briefId)
       }
     } finally {
-      // Only count toward the cap on success, and never for the first brief (D15.3, D15.5)
-      if (success && !isFirstBrief) {
-        void serviceClient
-          .from('generation_usage')
-          .upsert({ user_id: user.id, date: today, count: currentUsageCount + 1 })
-      }
       await writer.close()
     }
   })()
