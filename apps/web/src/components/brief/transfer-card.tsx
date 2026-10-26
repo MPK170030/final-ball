@@ -5,7 +5,7 @@ import { FixtureChip } from './fixture-chip'
 import { cn } from '@/lib/utils'
 import type { TransferCardPayload } from './types'
 
-type GwScore = { gwId: number; fdr: number | null; isDouble: boolean; points: number }
+type GwScore = { gwId: number; fdr: number | null; isDouble: boolean; points: number; opponents: { shortName: string; isHome: boolean }[] }
 
 const POS: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
 
@@ -31,7 +31,14 @@ function FixtureChips({ perGw, size = 'md' }: FixtureChipsProps) {
   return (
     <div className="flex gap-1">
       {perGw.map((gw) => (
-        <FixtureChip key={gw.gwId} fdr={gw.fdr} isDouble={gw.isDouble} size={size} />
+        <FixtureChip
+          key={gw.gwId}
+          fdr={gw.fdr}
+          isDouble={gw.isDouble}
+          size={size}
+          opponent={gw.opponents[0]?.shortName}
+          isHome={gw.isDouble ? undefined : gw.opponents[0]?.isHome}
+        />
       ))}
     </div>
   )

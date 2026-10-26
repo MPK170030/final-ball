@@ -1,4 +1,4 @@
-import type { Bootstrap, Fixture } from '../fpl/types.js'
+import type { Bootstrap, Club, Fixture } from '../fpl/types.js'
 import { getNextGameweek } from '../fpl/helpers.js'
 
 export interface GwFixture {
@@ -6,6 +6,8 @@ export interface GwFixture {
   /** null = blank gameweek (player's club has no fixture). */
   avgFdr: number | null
   isDouble: boolean
+  /** Resolved opponent(s). Empty when teams lookup not provided (e.g. tests). */
+  opponents: { shortName: string; isHome: boolean }[]
 }
 
 /**
@@ -31,14 +33,19 @@ export function getClubGwFixtures(
   clubId: number,
   allFixtures: Fixture[],
   gwIds: number[],
+  teams?: Club[],
 ): GwFixture[] {
+  const teamById = teams?.length
+    ? new Map(teams.map(t => [t.id, t.short_name]))
+    : null
+
   return gwIds.map(gwId => {
     const matches = allFixtures.filter(
       f => f.event === gwId && (f.team_h === clubId || f.team_a === clubId),
     )
 
     if (matches.length === 0) {
-      return { gwId, avgFdr: null, isDouble: false }
+      return { gwId, avgFdr: null, isDouble: false, opponents: [] }
     }
 
     const fdrs = matches.map(f =>
@@ -46,7 +53,15 @@ export function getClubGwFixtures(
     )
     const avgFdr = fdrs.reduce((a, b) => a + b, 0) / fdrs.length
 
-    return { gwId, avgFdr, isDouble: matches.length > 1 }
+    const opponents = teamById
+      ? matches.map(f => {
+          const isHome = f.team_h === clubId
+          const opponentId = isHome ? f.team_a : f.team_h
+          return { shortName: teamById.get(opponentId) ?? '???', isHome }
+        })
+      : []
+
+    return { gwId, avgFdr, isDouble: matches.length > 1, opponents }
   })
 }
 

@@ -7,6 +7,8 @@ export interface GwScore {
   /** null = blank GW */
   fdr: number | null
   isDouble: boolean
+  /** Resolved opponent(s) for display. Empty on blank GWs. */
+  opponents: { shortName: string; isHome: boolean }[]
 }
 
 export interface ScoreBreakdown {
@@ -52,11 +54,11 @@ export function scorePlayer(
       : 1.0
 
   const gwIds = getUpcomingGwIds(bootstrap, 3)
-  const fixtures = getClubGwFixtures(player.team, allFixtures, gwIds)
+  const fixtures = getClubGwFixtures(player.team, allFixtures, gwIds, bootstrap.teams)
 
   const perGw: GwScore[] = fixtures.map((fx, i) => {
     if (fx.avgFdr === null) {
-      return { gwId: fx.gwId, points: 0, fdr: null, isDouble: false }
+      return { gwId: fx.gwId, points: 0, fdr: null, isDouble: false, opponents: [] }
     }
 
     let points: number
@@ -69,7 +71,7 @@ export function scorePlayer(
       points = fx.isDouble ? base * 2 : base
     }
 
-    return { gwId: fx.gwId, points, fdr: fx.avgFdr, isDouble: fx.isDouble }
+    return { gwId: fx.gwId, points, fdr: fx.avgFdr, isDouble: fx.isDouble, opponents: fx.opponents }
   })
 
   const total = perGw.reduce((sum, gw) => sum + gw.points, 0)
