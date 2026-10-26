@@ -46,7 +46,9 @@ export function scorePlayer(
   const epNext =
     player.ep_next !== null ? parseFloat(player.ep_next) : parseFloat(player.form) * 0.9
 
-  const form = parseFloat(player.form)
+  // Blend recent form (4-game rolling avg, volatile) with season points_per_game
+  // (stable) so one standout game doesn't inflate GW2/3 projections.
+  const form = parseFloat(player.form) * 0.6 + parseFloat(player.points_per_game) * 0.4
 
   const availability =
     player.chance_of_playing_next_round !== null

@@ -54,7 +54,9 @@ function scoreAsCandidate(
 }
 
 /**
- * Phase 4: all affordable, same-position, unowned players sorted by pts/£m desc.
+ * Phase 4: all affordable, same-position, unowned players sorted by projected
+ * 3-GW points desc. Fixture quality already drives the score via fdrMultiplier;
+ * pts/£m (valueScore) is kept on the Candidate for display but no longer gates rank.
  * Status 'u' (unavailable for season) and 'n' (no contract) are excluded;
  * injured/doubtful players score low naturally via their availability factor.
  */
@@ -76,7 +78,7 @@ function eligibleCandidates(
         p.status !== 'n',
     )
     .map(p => scoreAsCandidate(p, allFixtures, bootstrap))
-    .sort((a, b) => b.valueScore - a.valueScore)
+    .sort((a, b) => b.score.total - a.score.total)
 }
 
 /**
