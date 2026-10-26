@@ -109,7 +109,7 @@ export function BriefClient({
   initial,
   teamName,
 }: BriefClientProps) {
-  const [brief] = useState<BriefData | null>(initialBrief)
+  const brief = initialBrief
   const [genStatus, setGenStatus] = useState<GenerateStatus>({ kind: 'idle' })
   const [detail, setDetail] = useState<DetailState | null>(null)
   const [isMobile, setIsMobile] = useState(true)
