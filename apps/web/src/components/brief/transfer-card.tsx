@@ -36,8 +36,8 @@ function FixtureChips({ perGw, size = 'md' }: FixtureChipsProps) {
           fdr={gw.fdr}
           isDouble={gw.isDouble}
           size={size}
-          opponent={gw.opponents[0]?.shortName}
-          isHome={gw.isDouble ? undefined : gw.opponents[0]?.isHome}
+          opponent={gw.opponents?.[0]?.shortName}
+          isHome={gw.isDouble ? undefined : gw.opponents?.[0]?.isHome}
         />
       ))}
     </div>
