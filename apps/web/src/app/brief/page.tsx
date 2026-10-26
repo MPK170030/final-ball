@@ -106,7 +106,7 @@ export default async function BriefPage() {
 
   // Load cards if we have a brief
   let briefData: BriefData | null = null
-  if (briefRow) {
+  if (briefRow && briefRow.gameweek === gameweek) {
     const { data: cardRows } = await supabase
       .from('cards')
       .select('id, type, position, payload')
