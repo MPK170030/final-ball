@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { FplClient } from './fpl/client.js'
 import { MemoryCacheAdapter } from './fpl/cache.js'
 import { loadContext } from './context.js'
@@ -11,6 +12,7 @@ import type { RankedTransferCard } from './analysis/rank.js'
 import type { CaptainResult } from './generateCaptain.js'
 import type { Player } from './fpl/types.js'
 import type { PlayerScore } from './analysis/weakspot.js'
+import type { AgentContext } from './context.js'
 
 export interface BriefResult {
   save: boolean
@@ -26,9 +28,57 @@ export interface BriefResult {
     bank: number
     elapsedMs: number
     usage: { inputTokens: number; outputTokens: number }
+    /** SHA-256 of the inputs used this run (D10.6). */
+    inputHash: string
+    /** Human-readable summary of notable squad state, shown as a chip when hash changes (D10.6). */
+    changeSummary: string
   }
   /** Top-3 weakest players for the "Why sell?" expansion (D8.6, D17.4). */
   whySellContext: PlayerScore[]
+}
+
+/**
+ * Computes a deterministic SHA-256 hash of the inputs that determine brief output:
+ * squad picks + selling prices, bank, free transfers, player news, and FDR values
+ * for the next 3 GWs (D10.6).
+ */
+export function computeInputHash(ctx: AgentContext): string {
+  const upcomingGwIds = ctx.bootstrap.events
+    .filter(e => e.id >= ctx.gameweek.id)
+    .map(e => e.id)
+    .sort((a, b) => a - b)
+    .slice(0, 3)
+
+  const fdrMap = new Map<string, number>()
+  for (const fixture of ctx.allFixtures) {
+    if (fixture.event === null || !upcomingGwIds.includes(fixture.event)) continue
+    fdrMap.set(`${fixture.team_h}-${fixture.event}`, fixture.team_h_difficulty)
+    fdrMap.set(`${fixture.team_a}-${fixture.event}`, fixture.team_a_difficulty)
+  }
+
+  const picks = ctx.picks.picks
+    .map(p => ({ id: p.element, sp: p.selling_price ?? 0 }))
+    .sort((a, b) => a.id - b.id)
+
+  const news: Record<number, string> = {}
+  const fdrs: Record<number, (number | null)[]> = {}
+  for (const player of ctx.squadPlayers) {
+    news[player.id] = player.news
+    fdrs[player.id] = upcomingGwIds.map(gwId => fdrMap.get(`${player.team}-${gwId}`) ?? null)
+  }
+
+  return createHash('sha256')
+    .update(JSON.stringify({ picks, bank: ctx.bank, freeTransfers: ctx.freeTransfers, news, fdrs }))
+    .digest('hex')
+}
+
+/** Produces a brief human-readable summary of notable squad state. */
+function computeChangeSummary(ctx: AgentContext): string {
+  const flagged = ctx.squadPlayers
+    .filter(p => p.chance_of_playing_next_round !== null && p.chance_of_playing_next_round < 100)
+    .map(p => `${p.web_name} ${p.chance_of_playing_next_round}%`)
+    .slice(0, 2)
+  return flagged.length > 0 ? `Updated — ${flagged.join(', ')} flagged` : 'FPL data updated'
 }
 
 /**
@@ -51,6 +101,8 @@ export async function generateBrief(
   // Phase 1: bootstrap + picks + history in parallel
   onProgress('Loading your squad...')
   const ctx = await loadContext(teamId, client)
+  const inputHash = computeInputHash(ctx)
+  const changeSummary = computeChangeSummary(ctx)
 
   // Phase 2+3: score all players, identify weak spots
   onProgress('Scoring your squad...')
@@ -121,6 +173,8 @@ export async function generateBrief(
         inputTokens: ranked.usage.inputTokens + captain.usage.inputTokens,
         outputTokens: ranked.usage.outputTokens + captain.usage.outputTokens,
       },
+      inputHash,
+      changeSummary,
     },
     whySellContext: weakspots.whySellContext,
   }

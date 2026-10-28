@@ -84,13 +84,15 @@ export default async function BriefPage() {
     ''
   const initial = displayName[0]?.toUpperCase() ?? '?'
 
-  // Load in parallel: FPL data + latest brief + today's usage
-  const today = new Date().toISOString().slice(0, 10)
-  const [fplData, latestBriefRes, usageRes] = await Promise.all([
-    loadFplData(teamId),
+  // Load FPL data first so we know the current gameweek for the version count query
+  const fplData = await loadFplData(teamId)
+  const gameweek = fplData.gameweek
+
+  // Then load the latest brief + version count for this gameweek in parallel
+  const [latestBriefRes, versionCountRes] = await Promise.all([
     supabase
       .from('briefs')
-      .select('id, gameweek, version, status, trace, generated_at')
+      .select('id, gameweek, version, status, trace, generated_at, change_summary')
       .eq('user_id', user.id)
       .eq('status', 'ready')
       .order('gameweek', { ascending: false })
@@ -98,16 +100,15 @@ export default async function BriefPage() {
       .limit(1)
       .maybeSingle(),
     supabase
-      .from('generation_usage')
-      .select('count')
+      .from('briefs')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .eq('date', today)
-      .maybeSingle(),
+      .eq('gameweek', gameweek)
+      .eq('status', 'ready'),
   ])
 
   const briefRow = latestBriefRes.data
-  const usageToday = usageRes.data?.count ?? 0
-  const gameweek = fplData.gameweek
+  const versionsThisGw = versionCountRes.count ?? 0
 
   // Load cards if we have a brief
   let briefData: BriefData | null = null
@@ -125,6 +126,7 @@ export default async function BriefPage() {
       generatedAt: briefRow.generated_at ?? new Date().toISOString(),
       trace: (briefRow.trace as TraceStep[]) ?? [],
       cards: (cardRows ?? []) as BriefCard[],
+      changeSummary: (briefRow.change_summary as string | null) ?? null,
     }
   }
 
@@ -135,7 +137,7 @@ export default async function BriefPage() {
       deadlineMs={fplData.deadlineMs}
       freeTransfers={fplData.freeTransfers}
       bankTenths={fplData.bankTenths}
-      usageToday={usageToday}
+      versionsThisGw={versionsThisGw}
       isDeadlinePassed={fplData.deadlinePassed}
       displayName={displayName}
       initial={initial}

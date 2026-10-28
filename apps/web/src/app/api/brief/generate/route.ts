@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateBrief, FplClient, FplError, MemoryCacheAdapter, getActiveGameweek } from '@finalball/agent'
+import {
+  generateBrief,
+  computeInputHash,
+  loadContext,
+  FplClient,
+  FplError,
+  MemoryCacheAdapter,
+  getActiveGameweek,
+} from '@finalball/agent'
 import type { BriefResult } from '@finalball/agent'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -7,7 +15,7 @@ import { createServiceClient } from '@/lib/supabase/service'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const DAILY_CAP = 3
+const VERSION_CAP = 3
 
 // ── Card payload builder ──────────────────────────────────────────────────────
 
@@ -91,32 +99,6 @@ export async function POST(_req: NextRequest) {
   }
   const teamId = profile.team_id
 
-  // First-brief exemption (D15.3): the very first brief for a user is free
-  const { count: briefCount } = await supabase
-    .from('briefs')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-
-  const isFirstBrief = (briefCount ?? 0) === 0
-
-  // Daily cap check — skipped for the first brief
-  const today = new Date().toISOString().slice(0, 10)
-  let currentUsageCount = 0
-
-  if (!isFirstBrief) {
-    const { data: usage } = await supabase
-      .from('generation_usage')
-      .select('count')
-      .eq('user_id', user.id)
-      .eq('date', today)
-      .maybeSingle()
-
-    currentUsageCount = usage?.count ?? 0
-    if (currentUsageCount >= DAILY_CAP) {
-      return NextResponse.json({ error: 'cap_reached' }, { status: 429 })
-    }
-  }
-
   // Concurrent generation guard — also recover from rows stuck in 'generating'
   // if Vercel killed the function at maxDuration before the catch block ran.
   const serviceClient = createServiceClient()
@@ -152,7 +134,7 @@ export async function POST(_req: NextRequest) {
     let briefId: string | null = null
 
     try {
-      // Get active gameweek — needed to create the brief row and detect FPL updating
+      // Get active gameweek — needed to fetch existing versions and detect FPL updating
       await send({ step: 'Connecting to FPL...' })
       const fplClient = new FplClient({ cache: new MemoryCacheAdapter() })
 
@@ -168,16 +150,35 @@ export async function POST(_req: NextRequest) {
         throw err
       }
 
-      // Determine next version for this user+gameweek (handles same-gameweek regeneration)
-      const { data: existing } = await serviceClient
+      // Fetch all ready briefs for this user+gameweek (version cap + hash check)
+      const { data: existingBriefs } = await serviceClient
         .from('briefs')
-        .select('version')
+        .select('version, input_hash, generated_at')
         .eq('user_id', user.id)
         .eq('gameweek', gameweek)
+        .eq('status', 'ready')
         .order('version', { ascending: false })
-        .limit(1)
 
-      const nextVersion = (existing?.[0]?.version ?? 0) + 1
+      const readyCount = existingBriefs?.length ?? 0
+
+      // Version cap: 3 per gameweek (D10.5, US-4.2)
+      if (readyCount >= VERSION_CAP) {
+        await send({ status: 'cap_reached' })
+        return
+      }
+
+      // Hash comparison: if latest brief has a hash, check whether inputs changed (D10.6)
+      const latestBrief = existingBriefs?.[0]
+      if (latestBrief?.input_hash) {
+        const ctx = await loadContext(teamId, fplClient)
+        const newHash = computeInputHash(ctx)
+        if (newHash === latestBrief.input_hash) {
+          await send({ status: 'no_change', lastGenerated: latestBrief.generated_at })
+          return
+        }
+      }
+
+      const nextVersion = (existingBriefs?.[0]?.version ?? 0) + 1
 
       // Create the brief row now so the concurrent guard holds for the full run
       const { data: briefRow, error: briefErr } = await serviceClient
@@ -191,7 +192,7 @@ export async function POST(_req: NextRequest) {
       }
       briefId = briefRow.id
 
-      // Run the agent pipeline; bootstrap is already cached in fplClient
+      // Run the agent pipeline; fplClient already has bootstrap (and context if loaded above) cached
       const result = await generateBrief(teamId, {
         client: fplClient,
         onProgress: (step) => void send({ step }),
@@ -206,25 +207,19 @@ export async function POST(_req: NextRequest) {
 
       if (cardsErr) throw new Error(cardsErr.message)
 
-      // Mark brief as ready
+      // Mark brief as ready, storing the input hash and change summary (D10.6)
       const { error: updateErr } = await serviceClient
         .from('briefs')
         .update({
           status: 'ready',
           trace: result.trace,
           generated_at: new Date().toISOString(),
+          input_hash: result.meta.inputHash,
+          change_summary: latestBrief ? result.meta.changeSummary : null,
         })
         .eq('id', briefId)
 
       if (updateErr) throw new Error(updateErr.message)
-
-      // Commit usage before sending 'ready' so router.refresh() on the client
-      // sees the updated count (D15.3, D15.5).
-      if (!isFirstBrief) {
-        await serviceClient
-          .from('generation_usage')
-          .upsert({ user_id: user.id, date: today, count: currentUsageCount + 1 })
-      }
 
       await send({ status: 'ready', briefId })
     } catch (err) {

@@ -50,6 +50,8 @@ export interface BriefData {
   generatedAt: string
   trace: TraceStep[]
   cards: BriefCard[]
+  /** Human-readable summary of what changed since the previous brief (D10.6). Null for the first brief. */
+  changeSummary: string | null
 }
 
 /** State for the detail sheet / side panel */

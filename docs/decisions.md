@@ -32,13 +32,15 @@
 | D2.1 | Normal weeks: one transfer per free transfer, with the agent's **top pick** plus **3 ranked alternatives**, each with reasoning | MVP | Serves both "tell me what to do" and "let me compare" managers |
 | D2.2 | **"Save the transfer"** is a first-class recommendation when the squad has no meaningful weak spot. It's shown next to the best transfer option. | MVP | Rolling is often correct; it's a recommendation, not an error state |
 | D2.3 | **Banked free transfers:** up to **2** suggestion cards, one per free transfer | MVP | Covers the common case of 2 free transfers without overloading mobile |
-| D2.4 | **Aggression toggle: Safe / Balanced / Bold.** Changing it regenerates the suggestions. It resets to Balanced each week. | MVP | User control over risk; fresh default each week |
+| D2.4 | **Aggression toggle: Safe / Balanced / Bold.** Changing it regenerates the suggestions. It resets to Balanced each week. *Each style is generated once per brief version and cached: see D2.11.* | MVP | User control over risk; fresh default each week |
 | D2.5 | Each receipt records the aggression level used | MVP | Enables "Bold picks: +18, Safe picks: +6" |
 | D2.6 | Regeneration uses **buttons only** | MVP | Keeps scope tight |
 | D2.7 | Text and voice input ("Ask the agent" panel), including "why not X?" comparisons | Post-MVP | Showcases replanning, after the core is solid |
 | D2.8 | **No point hits (-4)** | MVP | Matches the one-transfer scope |
 | D2.9 | Hits tied to aggression: Safe never; Balanced only for an injury or suspension that can't be covered; Bold when the expected gain over 3 gameweeks beats the cost by a margin. Capped at 1 per week, shown on a separate optional card; receipts subtract 4. | Post-MVP | Disciplined, explainable hit advice |
 | D2.10 | Funding moves *proposed by the agent* (selling now to buy next week) | Post-MVP | That's multi-week planning |
+| D2.11 | **Style results are cached per brief version.** Each style (Safe / Balanced / Bold) is generated at most once per version; switching back shows the cached result. Changing style never uses a refresh. New style generations happen only after a Refresh creates a new version. | MVP (25 Oct) | Accountable advice must sound confident and consistent; re-rolling the same inputs into different picks makes the agent look unsure. Accepted tradeoff: no "another opinion" by re-rolling; the alternatives on each card and "Ask the agent" (D2.7) cover disagreement. Resolves US-3.7. |
+| D2.12 | **The weak spot doesn't depend on style.** Weak spots (agent flow step 3) are found once per version, without the style. Style changes only the candidate ranking and the captain choice. The "Why sell X?" reason is identical across styles. | MVP (25 Oct) | A diagnosis that changes with risk appetite undermines trust in the diagnosis itself |
 
 ## 3. Planning horizon
 
@@ -144,8 +146,10 @@
 | D10.1 | **Email reminder only:** one per gameweek ("Your GW brief is ready — deadline in 24h"), with opt-out in Settings | MVP | Simple, reliable |
 | D10.2 | Push notifications | Rejected (including post-MVP) | Owner's decision |
 | D10.3 | **Briefs are generated on a schedule** (about 24h before the deadline) and stored | MVP | Opens instantly; fixes what counts as "the suggestion" for receipts; makes the email meaningful |
-| D10.4 | **A Refresh button** regenerates the brief as a new version; receipts track the version the user acted on | MVP | Handles breaking news |
+| D10.4 | **A Refresh button** regenerates the brief as a new version; receipts track the version the user acted on. *Only when the inputs have changed: see D10.6.* | MVP | Handles breaking news |
 | D10.5 | **Refresh cap: 3 per gameweek** | MVP | Controls model costs |
+| D10.6 | **Refresh is driven by changed data.** The brief's inputs (squad, bank, free transfers, prices, injury news, fixtures) are hashed. If nothing changed, there's no regeneration: "Nothing has changed since [time]. Your brief still stands." That refresh doesn't count toward the 3. If something changed, the new version states what changed (for example, "Updated: Saka flagged 50%"). | MVP (25 Oct) | Refresh reacts to news instead of rolling again; same principle as D2.11 |
+| D10.7 | **Same inputs, same output.** Ranking and decision steps run at temperature 0 or near it. Wording may vary; picks may not. | MVP (25 Oct) | Consistency across versions and styles |
 
 ## 11. Platform, stack, and infrastructure
 
@@ -230,15 +234,4 @@
 | D16.6 | **Google sign-in published to production** before sharing (basic scopes; confirm whether Google review is needed) | Core | In "Testing" status, only listed test users can sign in |
 | D16.7 | **Labeled "v0.1, MVP in progress"** on the site and portfolio, with the roadmap | Core | Honest framing shows scope judgment |
 | D16.8 | **Moved out of the core:** scheduling and email (including "Email me a link to finish on desktop," D9.6), Refresh, chips, preview and check-in, receipts and scorecard, curated demo, the style toggle, full motion and light mode | Deferred to weeks 26 Oct – 20 Nov | Sequenced in `plan.md` section 7 |
-## 17. Analysis and model
-
-| ID | Decision | Status | Rationale |
-|---|---|---|---|
-| D17.1 | **Weak-spot score (sell side):** `ep_next × availability` for GW1 (FPL's model already has fixture baked in); `form × fdrMultiplier(fdr) × availability` for GW2/3, where `fdrMultiplier = max(0.25, (5-fdr)/4)`. Blank GW = 0 pts. Double GW = ×2 on GW2/3. **Candidate score (buy side):** same formula ÷ price — best expected pts per £m among affordable options. | Core | Separating sell-side (raw pts to identify dead weight) from buy-side (value metric to rank replacements) gives the right signal for each question. |
-| D17.2 | **Model:** `claude-sonnet-4-6` via `ANTHROPIC_MODEL` env var (never hardcoded). Chosen for multi-step reasoning with adaptive thinking at ~$0.10/call; daily cap (D16.5) controls cost. Official `@anthropic-ai/sdk` only — not OpenRouter, no proxy. | Core | ~$2–6/month at family scale; OpenRouter adds latency and proxy risk for negligible savings at this scale. |
-| D17.3 | **Backup GK floor:** the bench goalkeeper is given an effective minimum score of 2.0 pts before pts/£m ranking. A bench GK scoring 0 is expected (structural insurance, not a scoring role); without a floor they always dominate the sell ranking regardless of whether a transfer makes sense, which destroys user trust. They can still appear as a sell candidate if their pts/£m is genuinely poor after the floor (e.g. an expensive bench GK with bad form). | Core | Owner's call: surfacing "your backup keeper is your weak spot" as the primary recommendation would cause users to dismiss the agent immediately. |
-| D17.4 | **Why-sell context:** show the **3 weakest eligible players** (pts/£m ranked, backup GK floor applied) in the "Why sell X?" expansion (D8.6). Gives the user enough context to see the sell recommendation isn't arbitrary without overwhelming the card. | Core | D8.6 requires showing X ranked against the next 2 weakest; 3 total is the minimum coherent context. |
-| D17.5 | **Save threshold: +1.0 pts** over 3 GWs. The model recommends "Save the transfer" when the best candidate's 3-GW projected score exceeds the sell candidate's by less than 1.0 pts. Below that margin the free transfer rolling to next week is usually worth more than the swap. The numerical pre-filter in `candidates.ts` still drops options that don't beat the sell player at all; the model threshold adds a meaningful-improvement gate on top. | Core | 1.0 pt = ~0.33 pt/GW gain — enough to matter over a season but not so high it blocks sensible moves. |
-
 | D16.9 | **Country-rank lookup moved back into the core** (reverses part of D16.2 and D16.8): country list, tie-size probe, page scan with fuzzy name match and neighbor-group check, real progress text, 5-second link option, 30-second cap, per-gameweek standings cache, and the link fallback | Core (19 Oct) | Owner's call: onboarding is the most important first impression, and family testing must catch problems with it early. Adds the most risk to Wednesday 21 Oct (`plan.md` section 7). |
-| D16.10 | **Sample brief storage:** a single `sample_brief` table (key `'current'`) stores the full brief as JSON — cards, trace, and page meta (team name, FT count, bank, deadline) — rather than reusing `briefs`/`cards` tables. Refresh is a POST to `/api/sample/refresh`, owner-auth-gated by email. The page reads this row directly (no FPL calls on page load). OG image is generated server-side from the stored cards and cache-busted with a `?v=` timestamp param. | Core | Completely decouples public reads from model/FPL calls; single-row upsert is atomic and trivially consistent. |
