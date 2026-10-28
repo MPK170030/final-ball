@@ -317,14 +317,17 @@ export async function rankWithModel(
   try {
     // 2-transfer prompts need more room — each card has 4 why fields + 3 alts
     const maxTokens = plan.transfers.length > 1 ? 2048 : 1024
-    response = await client.messages.create({
+    const rankParams: Anthropic.MessageCreateParamsNonStreaming = {
       model,
       max_tokens: maxTokens,
       system: SYSTEM_PROMPT,
       tools: [PLAN_TOOL],
       tool_choice: { type: 'tool', name: 'submit_transfer_plan' },
       messages: [{ role: 'user', content: buildUserPrompt(plan, ctx) }],
-    })
+    }
+    // temperature is valid per the API but absent from this SDK version's types
+    ;(rankParams as unknown as Record<string, unknown>)['temperature'] = 0
+    response = await client.messages.create(rankParams)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     trace.push({ title: 'Fallback', text: `Model call failed (${msg}) — using top-ranked deterministic picks.` })
