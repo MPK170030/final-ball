@@ -339,14 +339,17 @@ export async function generateCaptain(
 
   let response: Anthropic.Message
   try {
-    response = await client.messages.create({
+    const captainParams: Anthropic.MessageCreateParamsNonStreaming = {
       model,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       tools: [CAPTAIN_TOOL],
       tool_choice: { type: 'tool', name: 'submit_captain_pick' },
       messages: [{ role: 'user', content: buildPrompt(candidates, ctx, transferResult) }],
-    })
+    }
+    // temperature is valid per the API but absent from this SDK version's types
+    ;(captainParams as unknown as Record<string, unknown>)['temperature'] = 0
+    response = await client.messages.create(captainParams)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     trace.push({ title: 'Fallback', text: `Model call failed (${msg}) — using top ep_next picks.` })

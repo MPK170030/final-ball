@@ -1,6 +1,6 @@
 export { generateTransfers } from './generateTransfers.js'
 export type { GenerateTransfersResult } from './generateTransfers.js'
-export { generateBrief } from './generateBrief.js'
+export { generateBrief, computeInputHash } from './generateBrief.js'
 export type { BriefResult } from './generateBrief.js'
 export { generateCaptain } from './generateCaptain.js'
 export type { CaptainResult, CaptainPick, CaptainWhySection } from './generateCaptain.js'

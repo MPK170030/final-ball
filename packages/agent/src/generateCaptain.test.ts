@@ -280,6 +280,30 @@ describe('generateCaptain', () => {
     expect(result.trace.some(t => t.replan)).toBe(true)
   })
 
+  it('calls messages.create with temperature: 0 (D10.7)', async () => {
+    const mockCreate = await getMockCreate()
+    mockCreate.mockResolvedValueOnce({
+      usage: { input_tokens: 200, output_tokens: 100 },
+      content: [
+        {
+          type: 'tool_use',
+          input: {
+            captain: { name: 'Player2', reason: 'Best ep_next.', why: { form: 'Good.', fixture: 'vs X', risks: 'None' } },
+            vc: { name: 'Player3', reason: 'Second best.', why: { form: 'OK.', fixture: 'vs Y', risks: 'None' } },
+            alternatives: [],
+          },
+        },
+      ],
+    })
+
+    await generateCaptain(makeCtx(), makeNoTransferResult())
+
+    expect(mockCreate).toHaveBeenCalledOnce()
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ temperature: 0 }),
+    )
+  })
+
   it('adds trace steps at each phase', async () => {
     const mockCreate = await getMockCreate()
     mockCreate.mockResolvedValueOnce({

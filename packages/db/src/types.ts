@@ -113,6 +113,8 @@ export interface Database {
           error: string | null
           generated_at: string | null
           created_at: string
+          input_hash: string | null
+          change_summary: string | null
         }
         Insert: {
           id?: string
@@ -125,6 +127,8 @@ export interface Database {
           error?: string | null
           generated_at?: string | null
           created_at?: string
+          input_hash?: string | null
+          change_summary?: string | null
         }
         Update: {
           id?: string
@@ -137,6 +141,8 @@ export interface Database {
           error?: string | null
           generated_at?: string | null
           created_at?: string
+          input_hash?: string | null
+          change_summary?: string | null
         }
         Relationships: []
       }

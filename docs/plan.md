@@ -30,10 +30,10 @@ All decisions referenced here (D-numbers) are in `decisions.md`.
   4. Chip alert card + chip status strip with expiry countdown
   5. Next-week preview
   6. Receipts + 5-gameweek scorecard
-- **Aggression toggle** (Safe / Balanced / Bold) that regenerates the suggestions and resets to Balanced each week
+- **Aggression toggle** (Safe / Balanced / Bold) that regenerates the suggestions and resets to Balanced each week; each style is generated once per brief version and cached (D2.11)
 - **Reasoning:** a summary line, "Why?" to expand, and the full trace behind "How the agent decided"
 - **Receipts:** transfers (with inferred intent and linked funding moves), captaincy, and chips; decision journal notes
-- **Refresh** (max 3 per gameweek); **scheduled generation**; **one email per gameweek**
+- **Refresh** (max 3 per gameweek; regenerates only when inputs changed, D10.6); **scheduled generation**; **one email per gameweek**
 - **Demo mode** (frozen snapshot + live toggle) for logged-out users
 - **Settings:** change Team ID, email opt-out, unlink and delete data
 - **Dark-first theme plus light mode**; mobile and desktop designed equally
@@ -88,16 +88,19 @@ Opt-in rival mode (league ownership badge, differentials as the tie-breaker, gap
 
 ## 4. Agent flow (per user, per run)
 
+0. **Check for changes (Refresh only):** hash the inputs (squad, bank, free transfers, prices, injury news, fixtures). If the hash matches the current version, stop and keep the current brief; the refresh isn't counted (D10.6).
 1. **Load context:** shared player and fixture data (cached in Supabase), the user's squad, bank, free transfers, chips, last week's preview, and the aggression level.
 2. **Check last week's preview:** compare it with the latest news; produce a stick-or-diverge recommendation.
-3. **Find weak spots:** form, the next 3 fixtures (FDR as one input among several), injury or rotation risk, value.
+3. **Find weak spots:** form, the next 3 fixtures (FDR as one input among several), injury or rotation risk, value. **Independent of style** (D2.12): computed once per version and shared by all three styles.
 4. **Search for candidates** for each weak spot (up to the number of free transfers, max 2).
 5. **Check constraints:** budget, 3-players-per-club limit, positions, free transfers. **If a candidate breaks a rule, replan** and record it in the trace.
-6. **Rank:** the top pick plus 3 alternatives, with reasoning, or recommend "Save the transfer."
+6. **Rank:** the top pick plus 3 alternatives, with reasoning, or recommend "Save the transfer." Style applies from here on.
 7. **Captain:** consider the squad after the suggested transfers; pick captain, vice, and alternatives.
 8. **Chips:** check timing using the 3-gameweek window plus the full-fixture blank/double scan ("provisional"), and expiry nudges.
 9. **Next-week preview:** one non-binding line.
-10. **Save** the brief as a new version, with the full trace.
+10. **Save** the brief as a new version, with the full trace and the input hash. Style results (steps 6–7) are cached per version (D2.11).
+
+Ranking and decision steps run at temperature 0 or near it, so the same inputs give the same picks (D10.7).
 
 ---
 
@@ -107,7 +110,7 @@ Opt-in rival mode (league ownership badge, differentials as the tie-breaker, gap
 |---|---|
 | `users` | id, google_sub, email, team_id, email_opt_out, created_at |
 | `fpl_cache` | key (bootstrap, fixtures, element_summary:{id}), payload, fetched_at |
-| `briefs` | id, user_id, gameweek, version, aggression, generated_by (schedule/refresh), trace, created_at |
+| `briefs` | id, user_id, gameweek, version, aggression, generated_by (schedule/refresh), input_hash, trace, created_at |
 | `cards` | id, brief_id, type (transfer/save/captain/chip/preview/check_in), rank, payload, reasoning_summary, reasoning_full |
 | `decisions` | id, user_id, gameweek, brief_version, card_id (nullable), label (followed / own_move / ignored_rolled / ignored_transferred), actual_move (from FPL history), journal_note, detected_at |
 | `intents` | decision_id, inferred (points/funding/injury_cover), corrected_by_user, linked_decision_id |
@@ -181,7 +184,7 @@ The user's actual transfers come from the FPL API's history and transfer endpoin
 
 | Week | Adds |
 |---|---|
-| **26 Oct – 1 Nov** | Scheduled briefs + weekly email; "Email me a link to finish on my computer"; Refresh with cap and versions; next-week preview + check-in; style toggle; lookup fixes from family feedback |
+| **26 Oct – 1 Nov** | Scheduled briefs + weekly email; "Email me a link to finish on my computer"; Refresh with cap, versions, and change detection (D10.6); next-week preview + check-in; style toggle with per-version caching (D2.11, D2.12); lookup fixes from family feedback |
 | **2 – 8 Nov** | Chips behind the toggle (timing, blank/double scan, expiry); receipts pipeline (labels, funding moves, captain and chip receipts) |
 | **9 – 15 Nov** | Scorecard, journal prompt, curated demo mode, Settings (email opt-out, delete data), accessibility, motion, light mode |
 | **16 – 20 Nov** | Polish, buffer, case study write-up, 60–90 second screen recording; **full MVP** |
@@ -204,7 +207,7 @@ The user's actual transfers come from the FPL API's history and transfer endpoin
 | Public repository: scheduled workflows disabled after 60 days of no activity | Low (during the season) | Re-enable before each season | — |
 | Vercel's 300-second limit on Refresh | Low | Stream progress; refresh one card at a time | Render Starter ($7/mo) |
 | Vercel Hobby is non-commercial only | Medium if monetized | No ads or donations | Vercel Pro |
-| Model costs growing with users | Medium | Refresh cap; cache shared analysis | Cheaper model for the batch |
+| Model costs growing with users | Medium | Refresh cap; change detection skips no-op refreshes (D10.6); style results cached per version (D2.11); cache shared analysis | Cheaper model for the batch |
 | Unofficial FPL API changes | Medium | Isolate all FPL calls in one client module | — |
 | Rank lookup not ready by the core deadline (moved into the core, D16.9) | Medium | Country list built Tuesday; lookup alone on Wednesday; tested with family ranks on Saturday | The link fallback ships either way |
 | Slow team lookup in large country leagues (England, India) | Medium | Tie-size probe, per-gameweek caching, 30-second cap with progress text, "Use my FPL link" from 5 seconds | URL fallback; post-MVP bookmarklet |

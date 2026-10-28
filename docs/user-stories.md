@@ -3,7 +3,7 @@
 > "We create the chance, you finish it."
 
 **Source of truth:** `decisions.md` (D-numbers) and the User Flows doc (Flows 1–7, screens 1–14, E1–E2).
-**Updated:** 19 October 2026 (country-rank lookup moved into the core, D16.9)
+**Updated:** 25 October 2026 (style results cached per version, data-driven Refresh: D2.11, D2.12, D10.6, D10.7)
 
 ## How to read this
 
@@ -217,9 +217,10 @@ These stories ship first (D16.2, D16.9); the rest follow by ~20 November (`plan.
 *As a manager, I want to switch between Safe, Balanced, and Bold, so that the suggestions match how much risk I want.*
 - [ ] Changing the style regenerates the transfer and captain suggestions
 - [ ] Resets to **Balanced** each gameweek
-- [ ] Changing the style doesn't use a refresh *(assumption to confirm)*
+- [ ] Changing the style doesn't use a refresh; each style is generated once per brief version and cached, so switching back shows the same result (D2.11)
+- [ ] The weak spot and its "Why sell [player]?" reason stay the same across styles; only the replacement ranking and captain change (D2.12)
 
-*Screen 8 · D2.4, D4.3*
+*Screen 8 · D2.4, D2.11, D2.12, D4.3*
 
 ### US-3.8 See the reasoning
 *As a manager, I want to see why the agent suggests something, so that I can trust it or disagree.*
@@ -261,8 +262,11 @@ These stories ship first (D16.2, D16.9); the rest follow by ~20 November (`plan.
 *As a manager, I want to regenerate my brief when news breaks, so that my advice stays current.*
 - [ ] **Refresh** regenerates the brief, with progress shown on screen
 - [ ] Each refresh saves a new version; receipts follow the version the user saw last
+- [ ] If nothing has changed since the current version, the brief isn't regenerated, the refresh isn't counted, and the app shows "Nothing has changed since [time]. Your brief still stands." (D10.6)
+- [ ] A new version states what changed (for example, "Updated: Saka flagged 50%")
+- [ ] The same inputs always produce the same picks (D10.7)
 
-*Screen 10 · D10.4*
+*Screen 10 · D10.4, D10.6, D10.7*
 
 ### US-4.2 Refresh limit
 *As a manager, I want to know how many refreshes I have left, so that I'm not surprised when they run out.*
@@ -510,8 +514,9 @@ These stories ship first (D16.2, D16.9); the rest follow by ~20 November (`plan.
 *As the owner, I want model usage capped, so that costs stay predictable.*
 - [ ] Refresh cap enforced on the server (3 per user per gameweek)
 - [ ] Shared analysis (fixtures, player form) is cached across users
+- [ ] Style results are cached per brief version, so toggling styles never triggers repeat generations (D2.11)
 
-*D10.5*
+*D2.11, D10.5*
 
 ### US-10.8 Daily cap on generating briefs (core only)
 *As the owner, I want a per-user daily limit on generating briefs, so that a public link can't run up model costs before the Refresh cap exists.*
@@ -548,4 +553,3 @@ These stories ship first (D16.2, D16.9); the rest follow by ~20 November (`plan.
 
 - **D15.6:** what the chip area shows when the toggle is off (US-3.10)
 - **US-3.1:** confirm the first brief doesn't count toward the 3 refreshes
-- **US-3.7:** confirm that changing the style doesn't use a refresh

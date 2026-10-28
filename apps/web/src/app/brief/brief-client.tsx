@@ -21,13 +21,14 @@ import type {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-const DAILY_CAP = 3
+const VERSION_CAP = 3
 
 type GenerateStatus =
   | { kind: 'idle' }
   | { kind: 'generating'; steps: string[]; currentStep: string | null }
   | { kind: 'error'; message: string }
   | { kind: 'fpl_updating' }
+  | { kind: 'no_change'; lastGenerated: string }
 
 interface BriefClientProps {
   initialBrief: BriefData | null
@@ -35,7 +36,7 @@ interface BriefClientProps {
   deadlineMs: number | null
   freeTransfers: number
   bankTenths: number
-  usageToday: number
+  versionsThisGw: number
   isDeadlinePassed: boolean
   displayName: string
   initial: string
@@ -103,7 +104,7 @@ export function BriefClient({
   deadlineMs,
   freeTransfers,
   bankTenths,
-  usageToday,
+  versionsThisGw,
   isDeadlinePassed,
   displayName,
   initial,
@@ -144,10 +145,6 @@ export function BriefClient({
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string }
-        if (res.status === 429) {
-          setGenStatus({ kind: 'idle' })
-          return
-        }
         throw new Error(body.error ?? `HTTP ${res.status}`)
       }
 
@@ -173,6 +170,7 @@ export function BriefClient({
             status?: string
             briefId?: string
             message?: string
+            lastGenerated?: string
           }
 
           if (data.step) {
@@ -186,6 +184,12 @@ export function BriefClient({
             if (data.step) completedSteps.push(data.step)
           } else if (data.status === 'fpl_updating') {
             setGenStatus({ kind: 'fpl_updating' })
+            return
+          } else if (data.status === 'no_change') {
+            setGenStatus({ kind: 'no_change', lastGenerated: data.lastGenerated ?? '' })
+            return
+          } else if (data.status === 'cap_reached') {
+            setGenStatus({ kind: 'idle' })
             return
           } else if (data.status === 'ready') {
             router.refresh()
@@ -224,11 +228,11 @@ export function BriefClient({
   }, [])
 
   // ── Cap/deadline state ──────────────────────────────────────────────────────
-  const cappedToday = usageToday >= DAILY_CAP
-  const canGenerate = !isDeadlinePassed && !cappedToday && genStatus.kind !== 'generating'
+  const cappedThisGw = versionsThisGw >= VERSION_CAP
+  const canGenerate = !isDeadlinePassed && !cappedThisGw && genStatus.kind !== 'generating'
   let newBriefDisabledReason: string | null = null
   if (isDeadlinePassed) newBriefDisabledReason = 'Deadline passed'
-  else if (cappedToday) newBriefDisabledReason = 'Daily limit reached'
+  else if (cappedThisGw) newBriefDisabledReason = 'Refresh limit reached'
 
   // ── Transfer card lookup for detail panel ───────────────────────────────────
   const detailTransferPayload = detail?.cardId && brief
@@ -261,14 +265,22 @@ export function BriefClient({
           <strong>Generation failed.</strong> {genStatus.message}
         </BriefBanner>
       )}
+      {genStatus.kind === 'no_change' && (
+        <BriefBanner variant="info">
+          <strong>Nothing has changed.</strong> Your brief still stands
+          {genStatus.lastGenerated
+            ? ` (generated at ${new Date(genStatus.lastGenerated).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })})`
+            : ''}.
+        </BriefBanner>
+      )}
       {isDeadlinePassed && (
         <BriefBanner variant="info">
           <strong>Deadline passed.</strong> This brief is read-only. Next brief arrives for GW{gameweek + 1}.
         </BriefBanner>
       )}
-      {!isDeadlinePassed && cappedToday && (
+      {!isDeadlinePassed && cappedThisGw && (
         <BriefBanner variant="info">
-          <strong>Daily limit reached.</strong> You&apos;ve used {usageToday} of {DAILY_CAP} generations today.
+          <strong>Refresh limit reached.</strong> You&apos;ve used all {VERSION_CAP} refreshes for GW{gameweek}.
         </BriefBanner>
       )}
 
@@ -300,13 +312,18 @@ export function BriefClient({
                     </div>
                   )}
                   {brief?.generatedAt && (
-                    <p className="text-small text-muted-foreground">
-                      Brief v{brief.version} ·{' '}
-                      {new Date(brief.generatedAt).toLocaleTimeString('en-GB', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
+                    <div className="text-right">
+                      <p className="text-small text-muted-foreground">
+                        Brief v{brief.version} ·{' '}
+                        {new Date(brief.generatedAt).toLocaleTimeString('en-GB', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                      {brief.changeSummary && (
+                        <p className="text-small text-primary mt-0.5">{brief.changeSummary}</p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -321,10 +338,14 @@ export function BriefClient({
                   className="gap-1.5"
                 >
                   <RefreshCwIcon className="size-3.5" aria-hidden="true" />
-                  {genStatus.kind === 'error' ? 'Try again' : brief ? 'New brief' : 'Generate brief'}
-                  {!isDeadlinePassed && (
+                  {genStatus.kind === 'error' || genStatus.kind === 'no_change'
+                    ? 'Try again'
+                    : brief
+                      ? 'Refresh'
+                      : 'Generate brief'}
+                  {!isDeadlinePassed && !cappedThisGw && (
                     <span className="font-mono text-xs opacity-70">
-                      {DAILY_CAP - usageToday} left today
+                      {VERSION_CAP - versionsThisGw} left
                     </span>
                   )}
                 </Button>
