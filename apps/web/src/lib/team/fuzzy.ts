@@ -1,6 +1,7 @@
 /** Normalize a team name for comparison: strip emoji/punctuation, lowercase, collapse spaces. */
 function normalize(s: string): string {
   return s
+    .normalize('NFC')
     .replace(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu, '')
     .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .toLowerCase()

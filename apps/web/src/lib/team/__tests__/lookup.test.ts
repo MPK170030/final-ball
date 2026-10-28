@@ -104,6 +104,22 @@ describe('fuzzyMatchTeamName', () => {
     expect(fuzzyMatchTeamName('Salah', 'Klopp')).toBe(false)
   })
 
+  // Unicode / accented characters
+  it('matches identical names containing ã (NFC)', () => {
+    expect(fuzzyMatchTeamName('Fernandão FC', 'Fernandão FC')).toBe(true)
+  })
+
+  it('matches NFC ã (user input) against NFD a+combining-tilde (FPL response)', () => {
+    // FPL may return names in NFD; user input from a modern browser is NFC
+    const nfcQuery = 'Fernandão FC'          // ã as single NFC code point U+00E3
+    const nfdCandidate = 'Fernandão FC' // a (U+0061) + combining tilde (U+0303)
+    expect(fuzzyMatchTeamName(nfcQuery, nfdCandidate)).toBe(true)
+  })
+
+  it('matches when user omits the accent entirely', () => {
+    expect(fuzzyMatchTeamName('Fernandao FC', 'Fernandão FC')).toBe(true)
+  })
+
   // Edge cases
   it('returns false when either side is empty after normalisation', () => {
     expect(fuzzyMatchTeamName('', 'Rampant Saka')).toBe(false)
