@@ -36,6 +36,42 @@ export interface TransferPlanResult {
 
 const POS: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
 
+// ── Sort keys and risk-tag type (D2.16, D2.11) ────────────────────────────────
+// Sort keys are exported so rank.ts can assign Safe/Balanced/Bold tags without
+// recomputing the same metrics. The diverse pool (round-robin merge below) is
+// kept so the floor- and ceiling-leaders surface even when they rank outside the
+// balanced top-4 by 3-GW total.
+
+/** Profile tag assigned to each option; assigned in rank.ts based on sort-key leadership. */
+export type RiskTag = 'safe' | 'balanced' | 'bold'
+
+/** Safe floor: steady 4/4/4 beats spiky 8/2/2 even when both are 100% fit. */
+export function safeSortKey(c: Candidate): number {
+  const minPts = c.score.perGw.length > 0
+    ? Math.min(...c.score.perGw.map(g => g.points))
+    : 0
+  return minPts * c.score.availability
+}
+
+/** Bold ceiling: DGW assets surface regardless of which GW contains the double. */
+export function boldSortKey(c: Candidate): number {
+  return c.score.perGw.length > 0
+    ? Math.max(...c.score.perGw.map(g => g.points))
+    : 0
+}
+
+/** Balanced: plain 3-GW total (availability already baked in by score.ts). */
+export function balancedSortKey(c: Candidate): number {
+  return c.score.total
+}
+
+// Pool passed to rankWithModel. Built from three sort orders (D2.15) so the
+// floor-leader (→ Safe) and ceiling-leader (→ Bold) surface even when they rank
+// outside the balanced top-20 by 3-GW total.
+const MODEL_POOL_SIZE = 20
+// Top-N drawn from each sort order before merging.
+const SORT_POOL_PER_ORDER = 15
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function getSellingPrice(player: Player, ctx: AgentContext): number {
@@ -131,7 +167,38 @@ function oneTransferPlan(
     allFixtures,
     bootstrap,
   )
-  const { valid, replans } = pickValid(raw, clubAfterSell)
+  // D2.15: build a tag-diverse pool by merging top candidates from each sort order
+  // before applying club limits. Round-robin interleave ensures the floor-leader
+  // (Safe) and ceiling-leader (Bold) enter the pool even outside the balanced top-20.
+  const byBold = [...raw].sort(
+    (a, b) => boldSortKey(b) - boldSortKey(a) || balancedSortKey(b) - balancedSortKey(a),
+  )
+  const bySafe = [...raw].sort((a, b) => safeSortKey(b) - safeSortKey(a))
+  const seenIds = new Set<number>()
+  const mergedPool: Candidate[] = []
+  // Round-robin: balanced[0], bold[0], safe[0], balanced[1], bold[1], safe[1], …
+  const rrLists = [raw, byBold, bySafe]
+  const rrIndices = [0, 0, 0]
+  const rrAdded = [0, 0, 0]
+  let rrAny = true
+  while (rrAny) {
+    rrAny = false
+    for (let li = 0; li < rrLists.length; li++) {
+      while (rrIndices[li]! < rrLists[li]!.length && rrAdded[li]! < SORT_POOL_PER_ORDER) {
+        const c = rrLists[li]![rrIndices[li]!]!
+        rrIndices[li]!++
+        if (!seenIds.has(c.player.id)) {
+          seenIds.add(c.player.id)
+          mergedPool.push(c)
+          rrAdded[li]!++
+          rrAny = true
+          break
+        }
+      }
+    }
+  }
+
+  const { valid, replans } = pickValid(mergedPool, clubAfterSell, MODEL_POOL_SIZE)
 
   trace.push({
     title: 'Candidates',
@@ -239,7 +306,7 @@ function twoTransferPlan(
       bootstrap,
     )
 
-    const { valid: valid1, replans: rp1 } = pickValid(raw1, clubAfterT1)
+    const { valid: valid1, replans: rp1 } = pickValid(raw1, clubAfterT1, MODEL_POOL_SIZE)
     if (valid1.length === 0) {
       replans0.push(`${c0.player.web_name} for T1 leaves no valid T2 — trying next`)
       replans1.push(...rp1)
@@ -269,15 +336,48 @@ function twoTransferPlan(
   for (const r of replans0) trace.push({ title: 'Replan · T1', text: r, replan: true })
   for (const r of replans1) trace.push({ title: 'Replan · T2', text: r, replan: true })
 
-  const t1ModelCandidates: Candidate[] = [topPick0]
-  for (const c0 of raw0) {
-    if (t1ModelCandidates.length >= 10) break
+  // D2.15: same tag-diverse round-robin merge for T1 pool.
+  const t1ByBold = [...raw0].sort(
+    (a, b) => boldSortKey(b) - boldSortKey(a) || balancedSortKey(b) - balancedSortKey(a),
+  )
+  const t1BySafe = [...raw0].sort((a, b) => safeSortKey(b) - safeSortKey(a))
+  const t1SeenIds = new Set<number>()
+  const t1MergedPool: Candidate[] = []
+  const t1RrLists = [raw0, t1ByBold, t1BySafe]
+  const t1RrIndices = [0, 0, 0]
+  const t1RrAdded = [0, 0, 0]
+  let t1RrAny = true
+  while (t1RrAny) {
+    t1RrAny = false
+    for (let li = 0; li < t1RrLists.length; li++) {
+      while (t1RrIndices[li]! < t1RrLists[li]!.length && t1RrAdded[li]! < SORT_POOL_PER_ORDER) {
+        const c = t1RrLists[li]![t1RrIndices[li]!]!
+        t1RrIndices[li]!++
+        if (!t1SeenIds.has(c.player.id)) {
+          t1SeenIds.add(c.player.id)
+          t1MergedPool.push(c)
+          t1RrAdded[li]!++
+          t1RrAny = true
+          break
+        }
+      }
+    }
+  }
+
+  const t1ModelCandidates: Candidate[] = []
+  for (const c0 of t1MergedPool) {
+    if (t1ModelCandidates.length >= MODEL_POOL_SIZE) break
     if (t1ModelCandidates.some(c => c.player.id === c0.player.id)) continue
     const count = clubBase.get(c0.player.team) ?? 0
     if (count >= 3) continue
     t1ModelCandidates.push(c0)
   }
-  alts0 = t1ModelCandidates.slice(1, 4)
+  // Ensure topPick0 is always in the pool (it may not be if it wasn't in any top-15)
+  if (!t1ModelCandidates.some(c => c.player.id === topPick0.player.id)) {
+    t1ModelCandidates.unshift(topPick0)
+    if (t1ModelCandidates.length > MODEL_POOL_SIZE) t1ModelCandidates.pop()
+  }
+  alts0 = t1ModelCandidates.filter(c => c.player.id !== topPick0.player.id).slice(0, 3)
 
   trace.push({
     title: 'Best replacements',

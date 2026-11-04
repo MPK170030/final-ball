@@ -209,6 +209,93 @@ export interface Database {
         }
         Relationships: []
       }
+      counters: {
+        Row: {
+          id: string
+          user_id: string
+          card_id: string
+          gameweek: number
+          quick_reply: string | null
+          message: string
+          outcome: 'held' | 'changed_fact' | 'accepted_preference' | 'declined' | null
+          new_payload: unknown | null
+          trace: unknown | null
+          status: 'pending' | 'ok' | 'failed'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          card_id: string
+          gameweek: number
+          quick_reply?: string | null
+          message: string
+          outcome?: 'held' | 'changed_fact' | 'accepted_preference' | 'declined' | null
+          new_payload?: unknown | null
+          trace?: unknown | null
+          status?: 'pending' | 'ok' | 'failed'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          card_id?: string
+          gameweek?: number
+          quick_reply?: string | null
+          message?: string
+          outcome?: 'held' | 'changed_fact' | 'accepted_preference' | 'declined' | null
+          new_payload?: unknown | null
+          trace?: unknown | null
+          status?: 'pending' | 'ok' | 'failed'
+          created_at?: string
+        }
+        Relationships: []
+      }
+      counter_records: {
+        Row: {
+          counter_id: string
+          user_choice: 'agent_original' | 'agent_changed' | 'own' | null
+          verdict: 'agent_right' | 'user_right' | 'even' | null
+          delta_pts: number | null
+          status: 'pending' | 'settled'
+          settled_at: string | null
+        }
+        Insert: {
+          counter_id: string
+          user_choice?: 'agent_original' | 'agent_changed' | 'own' | null
+          verdict?: 'agent_right' | 'user_right' | 'even' | null
+          delta_pts?: number | null
+          status?: 'pending' | 'settled'
+          settled_at?: string | null
+        }
+        Update: {
+          counter_id?: string
+          user_choice?: 'agent_original' | 'agent_changed' | 'own' | null
+          verdict?: 'agent_right' | 'user_right' | 'even' | null
+          delta_pts?: number | null
+          status?: 'pending' | 'settled'
+          settled_at?: string | null
+        }
+        Relationships: []
+      }
+      counter_usage: {
+        Row: {
+          user_id: string
+          gameweek: number
+          count: number
+        }
+        Insert: {
+          user_id: string
+          gameweek: number
+          count?: number
+        }
+        Update: {
+          user_id?: string
+          gameweek?: number
+          count?: number
+        }
+        Relationships: []
+      }
       sample_brief: {
         Row: {
           key: string
