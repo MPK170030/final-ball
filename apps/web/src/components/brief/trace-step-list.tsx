@@ -15,7 +15,7 @@ export function TraceStepList({ steps, className }: TraceStepListProps) {
           className={cn(
             'rounded-md border px-3 py-2.5',
             step.replan
-              ? 'border-primary/40 border-dashed bg-primary/5'
+              ? 'border-[1.5px] border-dashed border-primary'
               : 'border-border bg-card',
           )}
         >

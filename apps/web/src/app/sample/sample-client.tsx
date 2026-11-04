@@ -53,13 +53,13 @@ function PublicHeader() {
   }
 
   return (
-    <header className="border-border flex items-center justify-between border-b px-4 py-3">
-      <span className="text-body-strong text-foreground">Final Ball</span>
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={handleSignIn} disabled={loading}>
+    <header className="border-border flex h-14 items-center justify-between border-b px-4 md:h-16">
+      <span className="text-[17px] font-semibold tracking-[-0.01em] text-foreground md:text-[19px]">Final Ball</span>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={handleSignIn} disabled={loading} className="h-11">
           Sign in
         </Button>
-        <Button size="sm" onClick={handleSignIn} disabled={loading}>
+        <Button size="sm" onClick={handleSignIn} disabled={loading} className="h-11">
           Get started
         </Button>
       </div>
@@ -90,8 +90,7 @@ function GetStartedPanel() {
         Get a brief for your own team
       </h2>
       <p className="text-body text-muted-foreground mb-6 mx-auto max-w-sm">
-        Final Ball generates personalised transfer and captain picks every gameweek — with the
-        full AI reasoning behind each decision.
+        Sign in with Google and find your team. Then you can counter any pick.
       </p>
       <Button onClick={handleSignIn} disabled={loading} className="gap-2">
         {loading && (
@@ -121,7 +120,7 @@ export function SampleClient({ briefData }: SampleClientProps) {
   }, [])
 
   const openDetail = useCallback(
-    (cardId: string, tab: 'why' | 'trace', trigger?: HTMLButtonElement) => {
+    (cardId: string, tab: 'why' | 'trace' | 'counter', trigger?: HTMLButtonElement) => {
       detailTriggerRef.current = trigger ?? null
       setDetail({ cardId, tab })
     },
@@ -133,7 +132,7 @@ export function SampleClient({ briefData }: SampleClientProps) {
     setTimeout(() => detailTriggerRef.current?.focus(), 0)
   }, [])
 
-  const changeTab = useCallback((tab: 'why' | 'trace') => {
+  const changeTab = useCallback((tab: 'why' | 'trace' | 'counter') => {
     setDetail(prev => prev ? { ...prev, tab } : null)
   }, [])
 
@@ -157,8 +156,8 @@ export function SampleClient({ briefData }: SampleClientProps) {
 
       {/* Sample brief banner */}
       <BriefBanner variant="info">
-        Sample brief. This is the owner&apos;s real team this week. It isn&apos;t advice for your
-        team.
+        <strong>Sample brief.</strong> This is the owner&apos;s real team this week. It isn&apos;t advice
+        for your team, and visitors can&apos;t counter.
       </BriefBanner>
 
       {/* Main layout */}
@@ -212,7 +211,6 @@ export function SampleClient({ briefData }: SampleClientProps) {
                             totalCards={transferCards.length}
                             bankTenths={bankTenths}
                             onWhyClick={(t) => openDetail(card.id, 'why', t)}
-                            onTraceClick={(t) => openDetail(card.id, 'trace', t)}
                             isSelected={detail?.cardId === card.id}
                           />
                         </motion.div>
@@ -228,7 +226,6 @@ export function SampleClient({ briefData }: SampleClientProps) {
                         <CaptainCard
                           payload={captainCard.payload as CaptainCardPayload}
                           onWhyClick={(t) => openDetail(captainCard.id, 'why', t)}
-                          onTraceClick={(t) => openDetail(captainCard.id, 'trace', t)}
                           isSelected={detail?.cardId === captainCard.id}
                         />
                       </motion.div>
@@ -266,6 +263,12 @@ export function SampleClient({ briefData }: SampleClientProps) {
             gameweek={gameweek}
             version={version}
             isMobile={false}
+            counterPhase={{ phase: 'idle' }}
+            quickReplies={[]}
+            onCounterSubmit={() => undefined}
+            onCounterReset={() => undefined}
+            counterDisabled={true}
+            counterDisabledReason="Sign in to counter any pick."
           />
         )}
       </div>
@@ -286,6 +289,12 @@ export function SampleClient({ briefData }: SampleClientProps) {
           gameweek={gameweek}
           version={version}
           isMobile={true}
+          counterPhase={{ phase: 'idle' }}
+          quickReplies={[]}
+          onCounterSubmit={() => undefined}
+          onCounterReset={() => undefined}
+          counterDisabled={true}
+          counterDisabledReason="Sign in to counter any pick."
         />
       )}
 

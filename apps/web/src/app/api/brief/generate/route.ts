@@ -26,11 +26,28 @@ type CardInsert = {
   payload: unknown
 }
 
-function buildCardRows(briefId: string, result: BriefResult): CardInsert[] {
+type EnrichMeta = {
+  clubs: Map<number, string>
+  nextFixtureForTeam: Map<number, { opponent: string; isHome: boolean } | null>
+  freeTransfers: number
+  gameweekId: number
+}
+
+function withClub<T extends { player: { team: number } }>(
+  obj: T,
+  clubs: Map<number, string>,
+): T & { clubShortName?: string } {
+  const name = clubs.get(obj.player.team)
+  return name ? { ...obj, clubShortName: name } : obj
+}
+
+function buildCardRows(briefId: string, result: BriefResult, enrich: EnrichMeta): CardInsert[] {
+  const { clubs, nextFixtureForTeam, freeTransfers, gameweekId } = enrich
   const rows: CardInsert[] = []
   let pos = 1
 
   if (result.save) {
+    const sellPlayer = result.whySellContext[0]
     rows.push({
       brief_id: briefId,
       type: 'transfer',
@@ -38,7 +55,18 @@ function buildCardRows(briefId: string, result: BriefResult): CardInsert[] {
       payload: {
         save: true,
         reason: result.saveReason ?? '',
-        bestOption: result.bestOptionForComparison ?? null,
+        bestOption: result.bestOptionForComparison
+          ? withClub(result.bestOptionForComparison, clubs)
+          : null,
+        sellPlayer: sellPlayer
+          ? {
+              player: sellPlayer.player,
+              sellingPrice: sellPlayer.player.now_cost,
+              clubShortName: clubs.get(sellPlayer.player.team),
+            }
+          : null,
+        freeTransfersNextGw: Math.min(2, freeTransfers + 1),
+        nextGw: gameweekId + 1,
       },
     })
   } else {
@@ -49,18 +77,30 @@ function buildCardRows(briefId: string, result: BriefResult): CardInsert[] {
         position: pos++,
         payload: {
           save: false,
-          sell: card.sell,
+          sell: withClub(card.sell, clubs),
           sellingPrice: card.sellingPrice,
-          topPick: card.topPick,
+          topPick: withClub(card.topPick, clubs),
           topPickReason: card.topPickReason,
           topPickWhy: card.topPickWhy,
-          alternatives: card.alternatives,
+          topPickRiskTag: card.topPickRiskTag,
+          alternatives: card.alternatives.map(alt => ({
+            ...alt,
+            candidate: withClub(alt.candidate, clubs),
+          })),
           whySell: card.whySell,
           swapReason: card.swapReason,
           replans: card.replans,
-          whySellContext: result.whySellContext,
+          whySellContext: result.whySellContext.map(ws => withClub(ws, clubs)),
         },
       })
+    }
+  }
+
+  function enrichCaptainPick(pick: typeof result.captain.captain) {
+    return {
+      ...pick,
+      clubShortName: clubs.get(pick.player.team),
+      nextFixture: nextFixtureForTeam.get(pick.player.team) ?? null,
     }
   }
 
@@ -69,9 +109,9 @@ function buildCardRows(briefId: string, result: BriefResult): CardInsert[] {
     type: 'captain',
     position: pos,
     payload: {
-      captain: result.captain.captain,
-      vc: result.captain.vc,
-      alternatives: result.captain.alternatives,
+      captain: enrichCaptainPick(result.captain.captain),
+      vc: enrichCaptainPick(result.captain.vc),
+      alternatives: result.captain.alternatives.map(enrichCaptainPick),
     },
   })
 
@@ -200,10 +240,35 @@ export async function POST(_req: NextRequest) {
 
       await send({ step: 'Saving your brief...' })
 
+      // Build enrichment meta (bootstrap + fixtures are cached from the agent run)
+      const [enrichBootstrap, enrichFixtures] = await Promise.all([
+        fplClient.getBootstrap(),
+        fplClient.getFixtures(),
+      ])
+      const clubs = new Map(enrichBootstrap.teams.map(t => [t.id, t.short_name]))
+      const gwId = result.meta.gameweekId
+      const nextFixtureForTeam = new Map<number, { opponent: string; isHome: boolean } | null>()
+      for (const f of enrichFixtures) {
+        if (f.event !== gwId) continue
+        nextFixtureForTeam.set(f.team_h, {
+          opponent: clubs.get(f.team_a) ?? '???',
+          isHome: true,
+        })
+        nextFixtureForTeam.set(f.team_a, {
+          opponent: clubs.get(f.team_h) ?? '???',
+          isHome: false,
+        })
+      }
+
       // Insert cards
       const { error: cardsErr } = await serviceClient
         .from('cards')
-        .insert(buildCardRows(briefId, result))
+        .insert(buildCardRows(briefId, result, {
+          clubs,
+          nextFixtureForTeam,
+          freeTransfers: result.meta.freeTransfers,
+          gameweekId: gwId,
+        }))
 
       if (cardsErr) throw new Error(cardsErr.message)
 

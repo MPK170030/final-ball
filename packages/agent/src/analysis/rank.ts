@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { AgentContext } from '../context.js'
 import type { TransferPlanResult, Candidate } from './candidates.js'
+import { safeSortKey, boldSortKey, balancedSortKey } from './candidates.js'
+import type { RiskTag } from './candidates.js'
 import type { PlayerScore } from './weakspot.js'
 import type { Player } from '../fpl/types.js'
 import type { TraceEntry } from '../trace.js'
@@ -24,6 +26,7 @@ export interface WhySection {
 export interface RankedAlternative {
   candidate: Candidate
   reason: string
+  riskTag: RiskTag
 }
 
 export interface RankedTransferCard {
@@ -32,6 +35,7 @@ export interface RankedTransferCard {
   topPick: Candidate
   topPickReason: string
   topPickWhy: WhySection
+  topPickRiskTag: RiskTag
   alternatives: RankedAlternative[]
   whySell: string
   swapReason: string
@@ -165,7 +169,7 @@ Data reference (internal — do NOT use these labels in your written output):
 
 Your task:
 1. Decide: transfer or save?
-2. If transferring — pick the best replacement and up to 3 alternatives, each with a one-line reason.
+2. If transferring — pick the best replacement from the tagged candidates and up to 3 alternatives from the same list. Write reasons aligned with each option's tag: Safe → highlight consistent returns and low rotation/injury risk; Bold → highlight the ceiling and upside even if there is some risk; Balanced → highlight the expected points and overall value.
 3. If saving — explain why in one sentence and name the best available option for the manager to see.
 
 Save threshold: recommend "save" when the best candidate improves 3-GW projected pts by less than ${SAVE_THRESHOLD_PTS.toFixed(1)} pts. Rolling the transfer earns an extra free transfer next week, which is often more valuable than a marginal swap.
@@ -179,6 +183,66 @@ Writing rules:
 - topPick.why.fixtures: the quality of the 3-match run — name the opponents.
 - topPick.why.price: whether the price is good value for what he offers.
 - topPick.why.risks: injury doubts, rotation risk, or penalty/set-piece uncertainty. Write "None identified" if clean.`
+
+// ── Risk-tag selection (D2.11) ────────────────────────────────────────────────
+
+/**
+ * From the diverse pool selects up to 4 options and assigns each a risk tag.
+ *
+ * - Balanced leader  = pool[0] (highest 3-GW total — already sorted)
+ * - Safe leader      = argmax(safeSortKey) — highest floor × availability
+ * - Bold leader      = argmax(boldSortKey) — highest peak single-GW pts
+ * - Filler           = next by total not yet selected → Balanced
+ *
+ * The top pick's tag reflects whether it also leads a non-balanced metric.
+ * If safe and bold leaders both equal the top pick (all metrics converge),
+ * the remaining slots fill with next-best-by-total and all get Balanced.
+ */
+function selectAndTagOptions(
+  pool: Candidate[],
+): Array<{ candidate: Candidate; tag: RiskTag }> {
+  if (pool.length === 0) return []
+
+  const safeLeaderIdx = pool.reduce(
+    (best, c, i) => safeSortKey(c) > safeSortKey(pool[best]!) ? i : best, 0,
+  )
+  const boldLeaderIdx = pool.reduce(
+    (best, c, i) => boldSortKey(c) > boldSortKey(pool[best]!) ? i : best, 0,
+  )
+
+  const usedIndices = new Set<number>()
+  const tagged: Array<{ candidate: Candidate; tag: RiskTag }> = []
+
+  // Top pick = pool[0] (balanced leader). Tag it by its non-balanced strengths.
+  const topTag: RiskTag =
+    boldLeaderIdx === 0 ? 'bold' :
+    safeLeaderIdx === 0 ? 'safe' :
+    'balanced'
+  tagged.push({ candidate: pool[0]!, tag: topTag })
+  usedIndices.add(0)
+
+  // Safe alternative
+  if (!usedIndices.has(safeLeaderIdx)) {
+    tagged.push({ candidate: pool[safeLeaderIdx]!, tag: 'safe' })
+    usedIndices.add(safeLeaderIdx)
+  }
+
+  // Bold alternative (only if different from safe leader)
+  if (!usedIndices.has(boldLeaderIdx)) {
+    tagged.push({ candidate: pool[boldLeaderIdx]!, tag: 'bold' })
+    usedIndices.add(boldLeaderIdx)
+  }
+
+  // Fill remaining slots with next-best-by-total (Balanced)
+  for (let i = 1; i < pool.length; i++) {
+    if (tagged.length >= 4) break
+    if (usedIndices.has(i)) continue
+    tagged.push({ candidate: pool[i]!, tag: 'balanced' })
+    usedIndices.add(i)
+  }
+
+  return tagged
+}
 
 // ── Prompt builder ────────────────────────────────────────────────────────────
 
@@ -202,7 +266,13 @@ function formatSell(sell: PlayerScore, sellingPrice: number): string {
     .join('\n')
 }
 
-function formatCandidate(c: Candidate, rank: number): string {
+const TAG_LABEL: Record<RiskTag, string> = {
+  safe: 'Safe',
+  balanced: 'Balanced',
+  bold: 'Bold',
+}
+
+function formatCandidate(c: Candidate, rank: number, tag: RiskTag): string {
   const p = c.player
   const s = c.score
   const gws = s.perGw
@@ -213,7 +283,7 @@ function formatCandidate(c: Candidate, rank: number): string {
     )
     .join(' | ')
   return [
-    `${rank}. ${p.web_name} | ${POS[p.element_type] ?? '?'} | £${(p.now_cost / 10).toFixed(1)}m | pts/£m ${c.valueScore.toFixed(2)}`,
+    `${rank}. ${p.web_name} [${TAG_LABEL[tag]}] | ${POS[p.element_type] ?? '?'} | £${(p.now_cost / 10).toFixed(1)}m | pts/£m ${c.valueScore.toFixed(2)}`,
     `   form ${p.form} | ep_next ${p.ep_next ?? 'n/a'} | availability ${s.availability < 1 ? `${(s.availability * 100).toFixed(0)}%` : '100%'}`,
     `   3-GW projected: ${s.total.toFixed(1)} pts | ${gws}`,
     p.news ? `   news: ${p.news}` : null,
@@ -239,13 +309,17 @@ function buildUserPrompt(plan: TransferPlanResult, ctx: AgentContext): string {
     if (opt.replans.length) lines.push(`Constraint notes from filtering: ${opt.replans.join('; ')}`)
     lines.push('')
 
-    const candidates = opt.candidatesForModel.length > 0
+    const pool = opt.candidatesForModel.length > 0
       ? opt.candidatesForModel
       : [opt.topPick, ...opt.alternatives]
-    lines.push(`### Candidates (same position, affordable, not owned, max 3 per club — ranked by pts/£m)`)
-    for (const [j, c] of candidates.entries()) {
-      lines.push(formatCandidate(c, j + 1))
+    const taggedOptions = selectAndTagOptions(pool)
+
+    lines.push('### Candidates (same position, affordable, not owned, max 3 per club — select your top pick and alternatives from this list)')
+    for (const [j, { candidate, tag }] of taggedOptions.entries()) {
+      lines.push(formatCandidate(candidate, j + 1, tag))
     }
+    lines.push('')
+    lines.push('Select from this list only. Reflect each tag in your reasoning: Safe → consistent returns and low risk; Bold → ceiling and upside despite risk; Balanced → expected points and overall value.')
     lines.push('')
   }
 
@@ -278,17 +352,25 @@ function deterministicFallback(
   return {
     save: plan.save,
     saveReason: plan.saveReason,
-    transfers: plan.transfers.map(opt => ({
-      sell: opt.sell,
-      sellingPrice: opt.sellingPrice,
-      topPick: opt.topPick,
-      topPickReason: '',
-      topPickWhy: { form: '', fixtures: '', price: '', risks: '' },
-      alternatives: opt.alternatives.map(c => ({ candidate: c, reason: '' })),
-      whySell: '',
-      swapReason: '',
-      replans: opt.replans,
-    })),
+    transfers: plan.transfers.map(opt => {
+      const pool = opt.candidatesForModel.length > 0
+        ? opt.candidatesForModel
+        : [opt.topPick, ...opt.alternatives]
+      const taggedOptions = selectAndTagOptions(pool)
+      const topTagged = taggedOptions[0] ?? { candidate: opt.topPick, tag: 'balanced' as RiskTag }
+      return {
+        sell: opt.sell,
+        sellingPrice: opt.sellingPrice,
+        topPick: topTagged.candidate,
+        topPickReason: '',
+        topPickWhy: { form: '', fixtures: '', price: '', risks: '' },
+        topPickRiskTag: topTagged.tag,
+        alternatives: taggedOptions.slice(1).map(o => ({ candidate: o.candidate, reason: '', riskTag: o.tag })),
+        whySell: '',
+        swapReason: '',
+        replans: opt.replans,
+      }
+    }),
     trace,
     usage,
   }
@@ -325,8 +407,6 @@ export async function rankWithModel(
       tool_choice: { type: 'tool', name: 'submit_transfer_plan' },
       messages: [{ role: 'user', content: buildUserPrompt(plan, ctx) }],
     }
-    // temperature is valid per the API but absent from this SDK version's types
-    ;(rankParams as unknown as Record<string, unknown>)['temperature'] = 0
     response = await client.messages.create(rankParams)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -376,24 +456,32 @@ export async function rankWithModel(
       ? opt.candidatesForModel
       : [opt.topPick, ...opt.alternatives]
 
+    const taggedOptions = selectAndTagOptions(allCandidates)
+    const tagMap = new Map<number, RiskTag>(taggedOptions.map(o => [o.candidate.player.id, o.tag]))
+    // Fallback tag for any candidate not in the tagged 4 (shouldn't happen in normal flow)
+    const getTag = (id: number): RiskTag => tagMap.get(id) ?? 'balanced'
+
     const replans = [...opt.replans]
     let replanCount = 0
 
-    // Step 7: validate top pick
-    let topPick = resolveCandidate(modelCard.topPick.playerName, allCandidates)
-    if (!topPick) {
+    // Step 7: validate top pick — model must name someone in the candidate list
+    const modelNamed = resolveCandidate(modelCard.topPick.playerName, allCandidates)
+    const fallbackPick = taggedOptions[0]?.candidate ?? opt.topPick
+
+    let topPick: Candidate
+    if (!modelNamed) {
       if (replanCount < MAX_REPLANS) {
         replanCount++
-        replans.push(
-          `Model top pick "${modelCard.topPick.playerName}" not in candidate list — using ${opt.topPick.player.web_name}`,
-        )
+        replans.push(`Model top pick "${modelCard.topPick.playerName}" not in candidate list — using ${fallbackPick.player.web_name}`)
         trace.push({
           title: `Replan · T${i + 1} pick`,
-          text: `Model chose "${modelCard.topPick.playerName}" — not in the valid candidate list. Using ${opt.topPick.player.web_name} instead.`,
+          text: `Model chose "${modelCard.topPick.playerName}" — not in the valid candidate list. Using ${fallbackPick.player.web_name} instead.`,
           replan: true,
         })
       }
-      topPick = opt.topPick
+      topPick = fallbackPick
+    } else {
+      topPick = modelNamed
     }
 
     // Step 7: validate alternatives
@@ -416,18 +504,19 @@ export async function rankWithModel(
         continue
       }
       usedIds.add(resolved.player.id)
-      alternatives.push({ candidate: resolved, reason: alt.reason })
+      alternatives.push({ candidate: resolved, reason: alt.reason, riskTag: getTag(resolved.player.id) })
     }
 
-    for (const c of allCandidates) {
+    // Backfill empty alternative slots from remaining tagged options (preserves tag diversity)
+    for (const o of taggedOptions) {
       if (alternatives.length >= 3) break
-      if (usedIds.has(c.player.id)) continue
-      usedIds.add(c.player.id)
-      alternatives.push({ candidate: c, reason: '' })
+      if (usedIds.has(o.candidate.player.id)) continue
+      usedIds.add(o.candidate.player.id)
+      alternatives.push({ candidate: o.candidate, reason: '', riskTag: o.tag })
     }
 
     const reranked = topPick.player.web_name !== opt.topPick.player.web_name
-      ? ' (model chose differently from deterministic top pick)'
+      ? ` (model reranked from deterministic top pick)`
       : ''
     trace.push({
       title: `T${i + 1} transfer`,
@@ -440,6 +529,7 @@ export async function rankWithModel(
       topPick,
       topPickReason: modelCard.topPick.reason,
       topPickWhy: modelCard.topPick.why,
+      topPickRiskTag: getTag(topPick.player.id),
       alternatives,
       whySell: modelCard.whySell,
       swapReason: modelCard.swapReason,

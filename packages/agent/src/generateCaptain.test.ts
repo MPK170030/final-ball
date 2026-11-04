@@ -121,13 +121,27 @@ function makeTransferResult(sellId: number, buyPlayer: Player): GenerateTransfer
   }
   return {
     save: false,
-    transfers: [{ sell, sellingPrice: 80, topPick, topPickReason: 'Great value.', topPickWhy: { form: '', fixtures: '', price: '', risks: '' }, alternatives: [], whySell: 'Poor form.', swapReason: 'Upgrade.', replans: [] }],
+    transfers: [{ sell, sellingPrice: 80, topPick, topPickReason: 'Great value.', topPickWhy: { form: '', fixtures: '', price: '', risks: '' }, topPickRiskTag: 'balanced' as const, alternatives: [], whySell: 'Poor form.', swapReason: 'Upgrade.', replans: [] }],
     trace: [{ n: 1, title: 'Transfer', text: `Sell Player${sellId} → buy ${buyPlayer.web_name}.` }],
     meta: { gameweekId: 8, freeTransfers: 1, bank: 10, elapsedMs: 0, usage: { inputTokens: 0, outputTokens: 0 } },
   }
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
+
+function makeValidCaptainResponse(captainName: string, vcName: string) {
+  return {
+    usage: { input_tokens: 200, output_tokens: 100 },
+    content: [{
+      type: 'tool_use',
+      input: {
+        captain: { name: captainName, reason: 'Best pick.', why: { form: 'Good.', fixture: 'vs X', risks: 'None identified' } },
+        vc: { name: vcName, reason: 'Second pick.', why: { form: 'OK.', fixture: 'vs Y', risks: 'None identified' } },
+        alternatives: [],
+      },
+    }],
+  }
+}
 
 describe('generateCaptain', () => {
   beforeEach(async () => {
@@ -328,5 +342,42 @@ describe('generateCaptain', () => {
     expect(titles).toContain('Model captain ranking')
     expect(titles).toContain('Tokens used')
     expect(titles).toContain('Captain result')
+  })
+
+  it('assigns riskTag to captain, vc, and alternatives (D2.11)', async () => {
+    const mockCreate = await getMockCreate()
+    mockCreate.mockResolvedValueOnce({
+      usage: { input_tokens: 200, output_tokens: 100 },
+      content: [
+        {
+          type: 'tool_use',
+          input: {
+            captain: { name: 'Player2', reason: 'Best.', why: { form: 'Good.', fixture: 'vs X', risks: 'None' } },
+            vc: { name: 'Player3', reason: 'Second.', why: { form: 'OK.', fixture: 'vs Y', risks: 'None' } },
+            alternatives: [
+              { name: 'Player4', reason: 'Alt.', why: { form: 'Decent.', fixture: 'vs Z', risks: 'None' } },
+            ],
+          },
+        },
+      ],
+    })
+
+    const result = await generateCaptain(makeCtx(), makeNoTransferResult())
+
+    const validTags = ['safe', 'balanced', 'bold']
+    expect(validTags).toContain(result.captain.riskTag)
+    expect(validTags).toContain(result.vc.riskTag)
+    expect(result.alternatives).toHaveLength(1)
+    expect(validTags).toContain(result.alternatives[0]!.riskTag)
+  })
+
+  it('does not append any style rider to the system prompt (D2.11)', async () => {
+    const mockCreate = await getMockCreate()
+    mockCreate.mockResolvedValueOnce(makeValidCaptainResponse('Player2', 'Player3'))
+
+    await generateCaptain(makeCtx(), makeNoTransferResult())
+
+    const call = mockCreate.mock.calls[0]![0] as { system: string }
+    expect(call.system).not.toContain('Style:')
   })
 })

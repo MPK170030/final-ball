@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRightIcon } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
-export function LandingAuth({ error }: { error?: string }) {
+function useSignIn() {
   const [loading, setLoading] = useState(false)
 
-  async function handleSignIn() {
+  async function signIn() {
     setLoading(true)
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
@@ -16,42 +16,68 @@ export function LandingAuth({ error }: { error?: string }) {
     })
   }
 
+  return { loading, signIn }
+}
+
+export function LandingNav() {
+  const { loading, signIn } = useSignIn()
+
   return (
-    <div className="flex flex-col items-center gap-3">
-      {/* Primary CTA */}
-      <button
-        onClick={handleSignIn}
-        disabled={loading}
-        className="bg-primary text-primary-foreground hover:bg-primary/80 focus-visible:ring-ring focus-visible:ring-offset-background inline-flex min-h-[44px] w-full items-center justify-center gap-3 rounded-md px-6 text-[15px] font-semibold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60"
-      >
-        {loading ? (
-          <span className="border-primary-foreground h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
-        ) : (
-          <GoogleIcon />
-        )}
-        Get started
-      </button>
+    <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
+      <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 lg:px-8">
+        <span className="text-[17px] font-semibold tracking-[-0.01em] text-foreground sm:text-[19px]">
+          Final Ball
+        </span>
+        <div className="flex items-center gap-5">
+          <Link
+            href="/sample"
+            className="hidden text-[14px] font-medium text-foreground transition-colors hover:text-muted-foreground sm:block"
+          >
+            Sample brief
+          </Link>
+          <button
+            onClick={signIn}
+            disabled={loading}
+            className="min-h-[44px] text-[14px] font-medium text-foreground underline underline-offset-[3px] transition-colors hover:text-muted-foreground disabled:pointer-events-none disabled:opacity-60"
+          >
+            Sign in
+          </button>
+        </div>
+      </div>
+    </header>
+  )
+}
 
-      {/* Sample brief link */}
-      <a
-        href="/sample"
-        className="group flex items-center gap-1 text-small text-muted-foreground transition-colors hover:text-foreground"
-      >
-        See a real brief
-        <ArrowRightIcon
-          className="size-3.5 text-primary transition-transform group-hover:translate-x-0.5"
-          aria-hidden="true"
-        />
-      </a>
+export function LandingAuth({ error }: { error?: string }) {
+  const { loading, signIn } = useSignIn()
 
-      {/* Sign in link */}
-      <button
-        onClick={handleSignIn}
-        disabled={loading}
-        className="text-small text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
-      >
-        Already have an account? Sign in
-      </button>
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2.5 pt-2 sm:flex-row sm:flex-wrap sm:gap-3">
+        <button
+          onClick={signIn}
+          disabled={loading}
+          className="inline-flex h-12 w-full items-center justify-center gap-3 rounded bg-primary px-7 text-[15px] font-semibold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 sm:w-auto"
+        >
+          {loading ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+          ) : (
+            <GoogleIcon />
+          )}
+          Get started
+        </button>
+
+        <Link
+          href="/sample"
+          className="inline-flex h-12 w-full items-center justify-center rounded border border-border px-6 text-[15px] font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto"
+        >
+          See a real brief
+        </Link>
+      </div>
+
+      <p className="text-[14px] leading-[20px] text-muted-foreground">
+        Free. Sign in with Google. We never ask for your FPL password.
+      </p>
 
       {error && (
         <p className="text-small text-negative" role="alert">

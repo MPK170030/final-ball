@@ -3,6 +3,7 @@ import type { AgentContext } from './context.js'
 import type { GenerateTransfersResult } from './generateTransfers.js'
 import type { Player } from './fpl/types.js'
 import type { TraceEntry } from './trace.js'
+import type { RiskTag } from './analysis/candidates.js'
 import { getUpcomingGwIds } from './analysis/fixtures.js'
 
 // ── Output types ──────────────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ export interface CaptainPick {
   player: Player
   reason: string
   why: CaptainWhySection
+  riskTag: RiskTag
 }
 
 export interface CaptainResult {
@@ -110,22 +112,70 @@ function fixtureDisplay(player: Player, ctx: AgentContext): string {
 
 const SHORTLIST_SIZE = 8
 
-/**
- * Scores starting XI players by ep_next descending and returns the top N.
- * GKs are excluded — captaining a keeper is never useful.
- */
+/** Scores starting XI players by ep_next descending and returns the top N. GKs are excluded. */
 function captainShortlist(
   startingPlayers: Player[],
   ctx: AgentContext,
 ): Array<{ player: Player; epNext: number; fixDisplay: string }> {
   return startingPlayers
-    .filter(p => p.element_type !== 1) // exclude GKs
+    .filter(p => p.element_type !== 1)
     .map(p => {
       const epNext = p.ep_next !== null ? parseFloat(p.ep_next) : parseFloat(p.form) * 0.9
       return { player: p, epNext, fixDisplay: fixtureDisplay(p, ctx) }
     })
     .sort((a, b) => b.epNext - a.epNext)
     .slice(0, SHORTLIST_SIZE)
+}
+
+// ── Risk-tag assignment for captain picks (D2.11) ──────────────────────────────
+
+/**
+ * Assigns Safe/Balanced/Bold tags to an ordered list of captain picks.
+ *
+ * - Balanced leader = highest ep_next (the expected-points pick)
+ * - Safe leader     = highest ep_next × availability (penalises doubtful players)
+ * - Bold leader     = highest ep_next / max(availability, 0.6) (rewards ceiling despite risk)
+ *
+ * If all metrics converge on the same player all picks get Balanced.
+ */
+function assignCaptainTags(
+  picks: Array<{ player: Player; epNext: number }>,
+): RiskTag[] {
+  if (picks.length === 0) return []
+
+  const pickAvail = (p: { player: Player }) =>
+    p.player.chance_of_playing_next_round !== null
+      ? p.player.chance_of_playing_next_round / 100
+      : 1
+
+  const balancedLeaderIdx = picks.reduce((bi, c, i) => c.epNext > picks[bi]!.epNext ? i : bi, 0)
+  const safeLeaderIdx = picks.reduce(
+    (bi, c, i) => c.epNext * pickAvail(c) > picks[bi]!.epNext * pickAvail(picks[bi]!) ? i : bi, 0,
+  )
+  const boldLeaderIdx = picks.reduce(
+    (bi, c, i) => c.epNext / Math.max(pickAvail(c), 0.6) > picks[bi]!.epNext / Math.max(pickAvail(picks[bi]!), 0.6) ? i : bi, 0,
+  )
+
+  const tags: RiskTag[] = picks.map(() => 'balanced' as RiskTag)
+  const usedIndices = new Set<number>()
+
+  const topTag: RiskTag =
+    balancedLeaderIdx === boldLeaderIdx ? 'bold' :
+    balancedLeaderIdx === safeLeaderIdx ? 'safe' :
+    'balanced'
+  tags[balancedLeaderIdx] = topTag
+  usedIndices.add(balancedLeaderIdx)
+
+  if (!usedIndices.has(safeLeaderIdx)) {
+    tags[safeLeaderIdx] = 'safe'
+    usedIndices.add(safeLeaderIdx)
+  }
+  if (!usedIndices.has(boldLeaderIdx)) {
+    tags[boldLeaderIdx] = 'bold'
+    usedIndices.add(boldLeaderIdx)
+  }
+
+  return tags
 }
 
 // ── Prompt builder ─────────────────────────────────────────────────────────────
@@ -280,7 +330,9 @@ function deterministicFallback(
 ): CaptainResult {
   const [c0, c1, c2] = candidates
   if (!c0 || !c1) throw new Error('Not enough starting XI players for a captain pick')
-  const mkPick = (c: (typeof candidates)[0], label: string): CaptainPick => ({
+  const allPicks = [c0, c1, ...(c2 ? [c2] : [])]
+  const tags = assignCaptainTags(allPicks)
+  const mkPick = (c: (typeof candidates)[0], label: string, tag: RiskTag): CaptainPick => ({
     player: c.player,
     reason: `${label} by ep_next this gameweek (${c.epNext.toFixed(1)} pts projected).`,
     why: {
@@ -288,11 +340,12 @@ function deterministicFallback(
       fixture: c.fixDisplay,
       risks: c.player.news || 'None identified',
     },
+    riskTag: tag,
   })
   return {
-    captain: mkPick(c0, 'Highest expected points'),
-    vc: mkPick(c1, 'Second-highest expected points'),
-    alternatives: c2 ? [mkPick(c2, 'Third option')] : [],
+    captain: mkPick(c0, 'Highest expected points', tags[0] ?? 'balanced'),
+    vc: mkPick(c1, 'Second-highest expected points', tags[1] ?? 'balanced'),
+    alternatives: c2 ? [mkPick(c2, 'Third option', tags[2] ?? 'balanced')] : [],
     trace,
     usage,
   }
@@ -347,8 +400,6 @@ export async function generateCaptain(
       tool_choice: { type: 'tool', name: 'submit_captain_pick' },
       messages: [{ role: 'user', content: buildPrompt(candidates, ctx, transferResult) }],
     }
-    // temperature is valid per the API but absent from this SDK version's types
-    ;(captainParams as unknown as Record<string, unknown>)['temperature'] = 0
     response = await client.messages.create(captainParams)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -402,7 +453,7 @@ export async function generateCaptain(
   const vcCandidate = validated(output.vc, 'VC', usedIds)
   usedIds.add(vcCandidate.player.id)
 
-  const alternatives: CaptainPick[] = []
+  const altCandidates: Array<{ player: Player; epNext: number; fixDisplay: string }> = []
   for (const alt of output.alternatives.slice(0, 2)) {
     const resolved = resolveCandidate(alt.name, candidates)
     if (!resolved || usedIds.has(resolved.player.id)) {
@@ -413,12 +464,16 @@ export async function generateCaptain(
       continue
     }
     usedIds.add(resolved.player.id)
-    alternatives.push({ player: resolved.player, reason: alt.reason, why: alt.why })
+    altCandidates.push(resolved)
   }
+
+  // Assign risk tags across all picks
+  const allPicks = [captainCandidate, vcCandidate, ...altCandidates]
+  const tags = assignCaptainTags(allPicks)
 
   trace.push({
     title: 'Captain result',
-    text: `Captain: ${captainCandidate.player.web_name}. VC: ${vcCandidate.player.web_name}${alternatives.length ? '. Alt: ' + alternatives.map(a => a.player.web_name).join(', ') : ''}.`,
+    text: `Captain: ${captainCandidate.player.web_name}. VC: ${vcCandidate.player.web_name}${altCandidates.length ? '. Alt: ' + altCandidates.map(a => a.player.web_name).join(', ') : ''}.`,
   })
 
   // Determine whether the captain is the incoming transfer player (D4.4)
@@ -430,16 +485,25 @@ export async function generateCaptain(
     })
   }
 
+  const alternatives: CaptainPick[] = altCandidates.map((c, idx) => ({
+    player: c.player,
+    reason: output.alternatives[idx]?.reason ?? '',
+    why: output.alternatives[idx]?.why ?? { form: '', fixture: '', risks: '' },
+    riskTag: tags[idx + 2] ?? 'balanced',
+  }))
+
   return {
     captain: {
       player: captainCandidate.player,
       reason: output.captain.reason,
       why: output.captain.why,
+      riskTag: tags[0] ?? 'balanced',
     },
     vc: {
       player: vcCandidate.player,
       reason: output.vc.reason,
       why: output.vc.why,
+      riskTag: tags[1] ?? 'balanced',
     },
     alternatives,
     trace,

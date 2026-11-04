@@ -1,9 +1,11 @@
 # Final Ball — Project Plan
 
 > "We create the chance, you finish it."
-> An AI agent for Fantasy Premier League managers. It analyzes your squad and the next 3 fixtures, recommends transfers, captaincy, and when to play chips, then shows whether its advice worked.
+> An AI agent for Fantasy Premier League managers. It analyzes your squad and the next 3 fixtures, recommends transfers, captaincy, and when to play chips, lets you push back on any pick, then shows whether its advice worked.
 
 All decisions referenced here (D-numbers) are in `decisions.md`.
+
+**Updated 3 November 2026:** the agent becomes a bounded tool-using loop; card-scoped counters replace Refresh; risk tags replace the Safe/Balanced/Bold toggle (`decisions.md` section 17, D2.11).
 
 ---
 
@@ -12,10 +14,10 @@ All decisions referenced here (D-numbers) are in `decisions.md`.
 | Goal | How it's measured |
 |---|---|
 | Managers come back every gameweek | Weekly returning users; email open rate → brief viewed |
-| The advice measurably helps | Rolling 5-gameweek scorecard of transfer receipts; followed vs. ignored (D7.2–D7.4) |
-| Strong portfolio piece | Demo mode, visible agent trace, a clean architecture story (D1.3, D8.4, D11.5) |
+| The advice measurably helps | Rolling 5-gameweek scorecard of transfer receipts; followed vs. ignored (D7.2–D7.4); who is right when the user pushes back (D17.6) |
+| Strong portfolio piece | A real agent loop with a visible trace, counters, demo mode, a clean architecture story (D1.3, D8.4, D11.5, D17.1) |
 
-**Non-goals for the MVP:** rival or league analysis, hits, multi-week plans, Wildcard and Free Hit squad builds, lineup advice, chat or voice input, push notifications, monetization.
+**Non-goals for the MVP:** rival or league analysis, hits, multi-week plans, Wildcard and Free Hit squad builds, lineup advice, open chat, voice input, push notifications, monetization.
 
 ---
 
@@ -30,19 +32,21 @@ All decisions referenced here (D-numbers) are in `decisions.md`.
   4. Chip alert card + chip status strip with expiry countdown
   5. Next-week preview
   6. Receipts + 5-gameweek scorecard
-- **Aggression toggle** (Safe / Balanced / Bold) that regenerates the suggestions and resets to Balanced each week; each style is generated once per brief version and cached (D2.11)
-- **Reasoning:** a summary line, "Why?" to expand, and the full trace behind "How the agent decided"
-- **Receipts:** transfers (with inferred intent and linked funding moves), captaincy, and chips; decision journal notes
-- **Refresh** (max 3 per gameweek; regenerates only when inputs changed, D10.6); **scheduled generation**; **one email per gameweek**
+- **Risk tags** (Safe / Balanced / Bold) on transfer and captain options, all on a 3-gameweek window (D2.11, D4.3)
+- **Reasoning:** a summary line, "Why?" to expand, and the real agent trace (tool calls, findings, replans) behind "How the agent decided"
+- **Counters:** "Counter this pick" on transfer and captain cards; quick replies plus a text box; the agent re-checks with tools and holds, changes for a new fact, or accepts the user's preference; max 10 per gameweek (D17.4–D17.7)
+- **"News since this brief" banner** on affected cards (D17.9)
+- **Receipts:** transfers (with inferred intent and linked funding moves), captaincy, and chips; counter records; decision journal notes
+- **Scheduled generation**; **one email per gameweek**; no user Refresh (D17.8)
 - **Demo mode** (frozen snapshot + live toggle) for logged-out users
 - **Settings:** change Team ID, email opt-out, unlink and delete data
 - **Dark-first theme plus light mode**; mobile and desktop designed equally
 
 ### Post-MVP
-"Ask the agent" (text and voice, including "why not X"); hits tied to aggression (max 1); agent-planned funding moves; Wildcard and Free Hit squad builders; chip planner timeline; lineup and bench advice; desktop "Find my ID" bookmarklet.
+Voice input for counters (D17.10); hits, Bold-tagged, max 1 (D2.9); agent-planned funding moves; Wildcard and Free Hit squad builders; chip planner timeline; lineup and bench advice; desktop "Find my ID" bookmarklet.
 
 ### Phase 2
-Opt-in rival mode (league ownership badge, differentials as the tie-breaker, gap context), league selection, strategy that shifts with the points gap, rival chip tracking.
+Opt-in rival mode (league ownership badge, differentials as the tie-breaker, gap context, captain ownership logic), league selection, strategy that shifts with the points gap, rival chip tracking.
 
 ---
 
@@ -52,21 +56,24 @@ Opt-in rival mode (league ownership badge, differentials as the tie-breaker, gap
 ┌────────────────────────────────────────────────────────────┐
 │ Vercel (Hobby) — /apps/web (Next.js + Tailwind + shadcn/ui) │
 │   • UI reads stored briefs from Supabase (instant loads)    │
-│   • /api/refresh → imports @finalball/agent for one user    │
-│     (max 300s, streamed progress, capped at 3 per GW)       │
+│   • /api/first-brief → agent, brief mode, for a new user    │
+│   • /api/counter → agent, counter mode, for one card        │
+│     (max 300s, streamed progress, 10 counters per GW)       │
 └──────────────┬─────────────────────────────────────────────┘
                │
 ┌──────────────▼──────────────┐     ┌───────────────────────┐
 │ Supabase (free)             │     │ Model API             │
-│  Postgres + Google auth     │     │ (called by agent)     │
+│  Postgres + Google auth     │     │ (called by agent,     │
+│                             │     │  tool-use loop)       │
 └──────────────▲──────────────┘     └───────────▲───────────┘
                │                                │
 ┌──────────────┴────────────────────────────────┴───────────┐
 │ GitHub Actions (public repo)                              │
 │  • daily-refresh.yml: FPL prices, injuries, fixtures →    │
-│    Supabase; resolves receipts; keeps the DB active       │
+│    Supabase; flags news for stored briefs; resolves       │
+│    receipts and counter records; keeps the DB active      │
 │  • weekly-brief.yml: ~24h before deadline, odd minute;    │
-│    generates every user's brief, then sends emails        │
+│    runs brief mode for every user, then sends emails      │
 │  • both: manual-run button, safe to re-run                │
 └──────────────┬────────────────────────────────────────────┘
                │
@@ -77,30 +84,47 @@ Opt-in rival mode (league ownership badge, differentials as the tie-breaker, gap
 **Monorepo layout**
 ```
 /apps/web            Next.js app
-/packages/agent      Agent: FPL client, analysis, model calls, trace (framework-agnostic)
+/packages/agent      Agent: tool loop, tools, FPL client, rule validator, trace (framework-agnostic)
 /packages/db         Supabase schema, types, queries
 /scripts/weekly      Batch brief generation + email
-/scripts/daily       Data refresh + receipt resolution
+/scripts/daily       Data refresh, news flags, receipt and counter resolution
 /.github/workflows   daily-refresh.yml, weekly-brief.yml
 ```
 
 ---
 
-## 4. Agent flow (per user, per run)
+## 4. Agent design
 
-0. **Check for changes (Refresh only):** hash the inputs (squad, bank, free transfers, prices, injury news, fixtures). If the hash matches the current version, stop and keep the current brief; the refresh isn't counted (D10.6).
-1. **Load context:** shared player and fixture data (cached in Supabase), the user's squad, bank, free transfers, chips, last week's preview, and the aggression level.
-2. **Check last week's preview:** compare it with the latest news; produce a stick-or-diverge recommendation.
-3. **Find weak spots:** form, the next 3 fixtures (FDR as one input among several), injury or rotation risk, value. **Independent of style** (D2.12): computed once per version and shared by all three styles.
-4. **Search for candidates** for each weak spot (up to the number of free transfers, max 2).
-5. **Check constraints:** budget, 3-players-per-club limit, positions, free transfers. **If a candidate breaks a rule, replan** and record it in the trace.
-6. **Rank:** the top pick plus 3 alternatives, with reasoning, or recommend "Save the transfer." Style applies from here on.
-7. **Captain:** consider the squad after the suggested transfers; pick captain, vice, and alternatives.
-8. **Chips:** check timing using the 3-gameweek window plus the full-fixture blank/double scan ("provisional"), and expiry nudges.
-9. **Next-week preview:** one non-binding line.
-10. **Save** the brief as a new version, with the full trace and the input hash. Style results (steps 6–7) are cached per version (D2.11).
+The agent is a **bounded tool-using loop** (D17.1). The model chooses its next action. Code owns the rules and validates every final output.
 
-Ranking and decision steps run at temperature 0 or near it, so the same inputs give the same picks (D10.7).
+### Tools (all read-only, D17.2)
+
+| Tool | Returns |
+|---|---|
+| `get_squad` | The user's 15 players, bank, free transfers, chips |
+| `get_player(id)` | Form, minutes, price, status, ownership-free stats |
+| `get_fixtures(team, n)` | Next n fixtures with difficulty |
+| `get_news(player)` | Injury, suspension, and availability flags |
+| `search_candidates(position, max_price)` | Players who fit a slot |
+| `check_constraints(move)` | Pass, or the rules the move breaks (budget, 3 per club, position, free transfers) |
+| `compare(a, b)` | Side-by-side 3-GW comparison |
+| `get_my_track_record(filter)` | The agent's settled receipts and counter records (D17.3) |
+
+### Brief mode (scheduled run, first brief)
+
+1. **Start** with the squad and a short context: gameweek, deadline, last week's preview, and news flags.
+2. **Loop** (about 15 tool calls max): the model investigates weak spots, pulls only the data it needs, searches candidates, checks constraints, and replans when a move fails.
+3. **Output** a structured brief: check-in, up to 2 transfer cards (top pick + 3 alternatives with risk tags, or "Save the transfer"), captain options with risk tags, chip advice (3-GW window plus the full-fixture blank/double scan, "provisional"), and a next-week preview.
+4. **Validate** in code: every move passes `check_constraints`; required fields exist. On failure, return the errors to the loop once; then fail the run.
+5. **Save** the brief with the full trace (every tool call, its result summary, and every replan).
+
+### Counter mode (one card, D17.5)
+
+1. **Start** with the card, its reasoning and trace, the user's counter (quick reply or text), and fresh news.
+2. **Reject** off-topic counters in one line, with no tool calls.
+3. **Loop** (about 6 tool calls max): the model must re-check the claim with tools before it answers.
+4. **Output** exactly one outcome: **Holds**, **Changes for a new fact**, or **Accepts your preference** (with the best move under that preference).
+5. **Validate** any new move with `check_constraints`. **Save** a counter record; the brief's original pick stays the agent's record (D17.6).
 
 ---
 
@@ -110,18 +134,21 @@ Ranking and decision steps run at temperature 0 or near it, so the same inputs g
 |---|---|
 | `users` | id, google_sub, email, team_id, email_opt_out, created_at |
 | `fpl_cache` | key (bootstrap, fixtures, element_summary:{id}), payload, fetched_at |
-| `briefs` | id, user_id, gameweek, version, aggression, generated_by (schedule/refresh), input_hash, trace, created_at |
-| `cards` | id, brief_id, type (transfer/save/captain/chip/preview/check_in), rank, payload, reasoning_summary, reasoning_full |
-| `decisions` | id, user_id, gameweek, brief_version, card_id (nullable), label (followed / own_move / ignored_rolled / ignored_transferred), actual_move (from FPL history), journal_note, detected_at |
+| `briefs` | id, user_id, gameweek, generated_by (schedule/first), trace, created_at |
+| `cards` | id, brief_id, type (transfer/save/captain/chip/preview/check_in), rank, risk_tag (safe/balanced/bold, nullable), payload, reasoning_summary, reasoning_full |
+| `brief_news` | id, brief_id, card_id, player_id, kind (injury/suspension/availability), detail, detected_at |
+| `counters` | id, user_id, card_id, gameweek, quick_reply (nullable), message, outcome (held/changed_fact/accepted_preference/declined), new_payload, trace, status (ok/failed), created_at |
+| `counter_records` | counter_id, user_choice (agent_original/agent_changed/own), verdict (agent_right/user_right/even), delta_pts, status (pending/settled), settled_at |
+| `counter_usage` | user_id, gameweek, count |
+| `decisions` | id, user_id, gameweek, card_id (nullable), label (followed / own_move / ignored_rolled / ignored_transferred), risk_tag (of the pick made, nullable), actual_move (from FPL history), journal_note, detected_at |
 | `intents` | decision_id, inferred (points/funding/injury_cover), corrected_by_user, linked_decision_id |
 | `receipts` | decision_id, window_start_gw, window_end_gw, delta_pts, status (pending/settled), settled_at |
-| `refresh_usage` | user_id, gameweek, count |
 | `email_log` | user_id, gameweek, sent_at, status |
 | `demo_snapshot` | the frozen squad, brief, and receipts used by demo mode |
 | `country_leagues` | season, country, league_id (built once per season) |
 | `standings_cache` | league_id, page, gameweek, payload, fetched_at (cached for the gameweek; used by the team lookup) |
 
-The user's actual transfers come from the FPL API's history and transfer endpoints. Squads are never copied.
+Removed on 3 Nov: `refresh_usage`, `briefs.version`, `briefs.aggression`. The user's actual transfers come from the FPL API's history and transfer endpoints. Squads are never copied.
 
 ---
 
@@ -129,10 +156,10 @@ The user's actual transfers come from the FPL API's history and transfer endpoin
 
 | When | Job | Purpose |
 |---|---|---|
-| Daily | `daily-refresh` | Cache prices, injuries, fixtures; settle receipts; keep Supabase active |
-| Deadline − ~24h (at an odd minute, e.g. :17) | `weekly-brief` | Generate all briefs, then send emails |
-| Any time before the deadline | User Refresh (max 3) | Regenerate after breaking news |
-| After the gameweek ends | `daily-refresh` | Update pending receipts |
+| Daily | `daily-refresh` | Cache prices, injuries, fixtures; flag news for stored briefs; settle receipts and counter records; keep Supabase active |
+| Deadline − ~24h (at an odd minute, e.g. :17) | `weekly-brief` | Run brief mode for all users, then send emails |
+| Any time before the deadline | User counters (max 10) | Push back on a card; re-check after news |
+| After the gameweek ends | `daily-refresh` | Update pending receipts and counter records |
 
 ---
 
@@ -157,13 +184,13 @@ The user's actual transfers come from the FPL API's history and transfer endpoin
 |---|---|
 | Google sign-in (published to production), Supabase, deploy on Vercel | Scheduled briefs and weekly email |
 | Team linking: **find your team by country + country rank + team name** (country list, tie-size probe, page scan, real progress text, 5-second link option, 30-second cap, standings cache), **link fallback** (paste a link or ID, copied-link detection, guide), "Is this you?", one account per team, cancel | "Email me a link to finish on my computer" (needs the email setup) |
-| First brief generated on demand | Refresh with 3-per-gameweek cap and versions |
+| First brief generated on demand | Counters (replaced Refresh on 3 Nov) |
 | Transfer cards: top pick + 3 alternatives, "Save your transfer," up to 2 cards | Chips, next-week preview, stick-or-diverge check-in |
 | Captain card | Receipts, scorecard, journal |
 | Summary reason, "Why?", and the agent trace | Curated demo mode |
 | **Public sample brief page:** the owner's team, real this week, no sign-in | Settings beyond sign out and change team |
-| **Daily GitHub Actions job** (keeps Supabase active, caches FPL data) | Safe/Balanced/Bold toggle (cut from the stretch goal) |
-| **Per-user daily cap on generating briefs** (until Refresh logic lands) | Full motion design, light mode |
+| **Daily GitHub Actions job** (keeps Supabase active, caches FPL data) | Risk tags (replaced the style toggle on 3 Nov) |
+| **Per-user daily cap on generating briefs** (until scheduled briefs and the counter cap land) | Full motion design, light mode |
 | Landing page labeled **"v0.1, MVP in progress,"** privacy page, sign out, error states | |
 
 ### Day by day (core MVP)
@@ -184,15 +211,17 @@ The user's actual transfers come from the FPL API's history and transfer endpoin
 
 | Week | Adds |
 |---|---|
-| **26 Oct – 1 Nov** | Scheduled briefs + weekly email; "Email me a link to finish on my computer"; Refresh with cap, versions, and change detection (D10.6); next-week preview + check-in; style toggle with per-version caching (D2.11, D2.12); lookup fixes from family feedback |
+| **26 Oct – 1 Nov** | Scheduled briefs + weekly email; "Email me a link to finish on my computer"; next-week preview + check-in; lookup fixes from family feedback. *(Refresh and the style toggle were planned here; replaced on 3 Nov.)* |
 | **2 – 8 Nov** | Chips behind the toggle (timing, blank/double scan, expiry); receipts pipeline (labels, funding moves, captain and chip receipts) |
 | **9 – 15 Nov** | Scorecard, journal prompt, curated demo mode, Settings (email opt-out, delete data), accessibility, motion, light mode |
 | **16 – 20 Nov** | Polish, buffer, case study write-up, 60–90 second screen recording; **full MVP** |
 
+**Added 3 Nov, no scope cuts (D16.10):** convert the agent to the tool loop (brief mode); risk tags on options; counter mode with quick replies, outcomes, cap, and counter records; "News since this brief" banner; `get_my_track_record`; remove the per-user daily generation cap once scheduled briefs and the counter cap are live. Updated wireframes come first.
+
 ### Portfolio presentation
 - Live app link, opening on the public sample brief
-- A case study page covering: the agent loop and visible trace; the team-ID problem and the country-rank solution; the accountability positioning; architecture under free-tier limits
-- A 60–90 second screen recording of a brief being generated
+- A case study page covering: the agent loop, its tools, and the visible trace; counters and why the agent doesn't cave; the team-ID problem and the country-rank solution; the accountability positioning; architecture under free-tier limits
+- A 60–90 second screen recording of a brief being generated and a counter being answered
 - An honest "v0.1, MVP in progress" label with the roadmap above
 
 ---
@@ -203,11 +232,13 @@ The user's actual transfers come from the FPL API's history and transfer endpoin
 |---|---|---|---|
 | FPL API throttling, IP blocks, "game updating" window | High | Fetch shared data once per run; throttle per-user calls; retry with increasing waits; cache everything; **test in week 1** | Run the batch from another host |
 | Supabase free project pauses after 7 days of inactivity (international breaks) | High | Daily data-refresh job | Supabase Pro ($25/mo) or Neon |
+| The agent caves to counters | High | Counter loop must re-check with tools; three fixed outcomes; "Accepts your preference" kept separate from "Changes for a new fact"; counter records scored (D17.5, D17.6) | Tighten the counter prompt; test with scripted pushback |
+| Agent loop is unpredictable (wrong tools, loops too long, weak picks) | Medium | Tool-call and time budgets; code validates every output; test on a fixed set of 5–10 squads after each change | Fall back to a fixed tool order for the batch |
 | GitHub scheduled runs delayed 30–60 minutes | Medium | Run ~24h before the deadline at an odd minute; manual-run button; safe to re-run | External cron calling a Vercel endpoint |
 | Public repository: scheduled workflows disabled after 60 days of no activity | Low (during the season) | Re-enable before each season | — |
-| Vercel's 300-second limit on Refresh | Low | Stream progress; refresh one card at a time | Render Starter ($7/mo) |
+| Vercel's 300-second limit on the first brief or a counter | Low | Stream progress; tool-call budgets | Render Starter ($7/mo) |
 | Vercel Hobby is non-commercial only | Medium if monetized | No ads or donations | Vercel Pro |
-| Model costs growing with users | Medium | Refresh cap; change detection skips no-op refreshes (D10.6); style results cached per version (D2.11); cache shared analysis | Cheaper model for the batch |
+| Model costs growing with users | Medium | Counter cap (10 per gameweek); off-topic counters use no tools; cache shared analysis; tool loops cost more per brief than a pipeline | Cheaper model for the batch; lower the cap |
 | Unofficial FPL API changes | Medium | Isolate all FPL calls in one client module | — |
 | Rank lookup not ready by the core deadline (moved into the core, D16.9) | Medium | Country list built Tuesday; lookup alone on Wednesday; tested with family ranks on Saturday | The link fallback ships either way |
 | Slow team lookup in large country leagues (England, India) | Medium | Tie-size probe, per-gameweek caching, 30-second cap with progress text, "Use my FPL link" from 5 seconds | URL fallback; post-MVP bookmarklet |
@@ -224,7 +255,11 @@ The user's actual transfers come from the FPL API's history and transfer endpoin
 - Resend free-tier sending limits
 - Domain availability for "Final Ball," plus a trademark check before any public launch
 - Exact warning color (set in the design system)
+- Counter cap value (starts at 10; tune from usage)
+- Counter message length limit
+- How a counter-record verdict is scored when the user's choice and the agent's pick tie or both are pending
+- Other interactive controls (D17.12)
 
 ## 10. Next step
 
-Start Phase 0: **the user flow.**
+Update the wireframes for counters, risk tags, the news banner, and the real trace; remove Refresh.

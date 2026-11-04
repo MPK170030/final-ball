@@ -4,6 +4,7 @@
 **Tagline:** "We create the chance, you finish it."
 **Positioning:** Accountable advice. Every suggestion is explained, tracked, and scored against what actually happened.
 **Decided:** 15–16 October 2026
+**Updated:** 3 November 2026: the agent becomes a tool-using loop; users counter cards; risk tags replace the toggle; Refresh is removed (section 17)
 **Supersedes:** The September 2026 "FPL Squad Builder" plan wherever the two conflict (see section 12).
 
 **Status labels**
@@ -11,6 +12,7 @@
 - **Post-MVP:** planned after the first release
 - **Phase 2:** depends on rival/league features
 - **Rejected:** considered and ruled out
+- **Replaced:** superseded by a later decision (the replacing ID is named)
 
 ---
 
@@ -23,7 +25,7 @@
 | D1.3 | Demo mode: a frozen, curated snapshot by default, plus a "See it on a live team" toggle and a visible "Demo" badge | MVP | A snapshot always shows a weak spot, a replan, and a chip decision; the live toggle proves it's real |
 | D1.4 | The demo entry point appears only on the landing page, for logged-out users | MVP | Keeps the main app focused on managers |
 | D1.5 | The core screens assume FPL knowledge. Demo mode alone gets light tooltips and an intro. | MVP | Avoids cluttering the experience for managers |
-| D1.6 | Differentiator: accountable advice (receipts, the agent's track record, a decision journal). Don't compete with long-horizon solvers. | MVP | The market is crowded with AI chat and 5–10 gameweek optimizers (FPL Copilot, FPL Pulse, FPL Guru, Onside Arena, fpl.team, LiveFPL); none of those found advertise checking whether their own advice worked |
+| D1.6 | Differentiator: accountable advice (receipts, the agent's track record, a decision journal, and a record of who is right when the user pushes back, D17.6). Don't compete with long-horizon solvers or open AI chat. | MVP | The market is crowded with AI chat and 5–10 gameweek optimizers (FPL Copilot, FPL Pulse, FPL Guru, Onside Arena, fpl.team, LiveFPL); none of those found advertise checking whether their own advice worked |
 
 ## 2. Recommendations: transfers
 
@@ -32,15 +34,14 @@
 | D2.1 | Normal weeks: one transfer per free transfer, with the agent's **top pick** plus **3 ranked alternatives**, each with reasoning | MVP | Serves both "tell me what to do" and "let me compare" managers |
 | D2.2 | **"Save the transfer"** is a first-class recommendation when the squad has no meaningful weak spot. It's shown next to the best transfer option. | MVP | Rolling is often correct; it's a recommendation, not an error state |
 | D2.3 | **Banked free transfers:** up to **2** suggestion cards, one per free transfer | MVP | Covers the common case of 2 free transfers without overloading mobile |
-| D2.4 | **Aggression toggle: Safe / Balanced / Bold.** Changing it regenerates the suggestions. It resets to Balanced each week. *Each style is generated once per brief version and cached: see D2.11.* | MVP | User control over risk; fresh default each week |
-| D2.5 | Each receipt records the aggression level used | MVP | Enables "Bold picks: +18, Safe picks: +6" |
-| D2.6 | Regeneration uses **buttons only** | MVP | Keeps scope tight |
-| D2.7 | Text and voice input ("Ask the agent" panel), including "why not X?" comparisons | Post-MVP | Showcases replanning, after the core is solid |
+| D2.4 | ~~Aggression toggle: Safe / Balanced / Bold that regenerates the suggestions and resets to Balanced each week~~ | Replaced by D2.11 (3 Nov) | A regenerating toggle often changed nothing visible, cost up to 3x model calls per brief, and recorded the toggle position instead of what the user chose |
+| D2.5 | Each receipt records the **risk tag of the pick the user actually made** (D2.11), so the scorecard can show "Bold picks: +18, Safe picks: +6" | MVP (revised 3 Nov) | Records real choices, not a setting |
+| D2.6 | ~~Regeneration uses buttons only~~ | Replaced by D17.4 (3 Nov) | Card-scoped counters with quick replies and a text box |
+| D2.7 | **Text** counters, including "why not X?" comparisons, scoped to a card (D17.4). **Voice** is post-MVP (D17.10). | MVP (text, 3 Nov); Post-MVP (voice) | Counters are the most agentic, most interactive feature |
 | D2.8 | **No point hits (-4)** | MVP | Matches the one-transfer scope |
-| D2.9 | Hits tied to aggression: Safe never; Balanced only for an injury or suspension that can't be covered; Bold when the expected gain over 3 gameweeks beats the cost by a margin. Capped at 1 per week, shown on a separate optional card; receipts subtract 4. | Post-MVP | Disciplined, explainable hit advice |
+| D2.9 | Hits: only for an injury or suspension that can't be covered, or when the expected gain over 3 gameweeks beats the cost by a margin. Always tagged **Bold**. Capped at 1 per week, shown on a separate optional card; receipts subtract 4. | Post-MVP (revised 3 Nov) | Disciplined, explainable hit advice; no toggle to tie it to |
 | D2.10 | Funding moves *proposed by the agent* (selling now to buy next week) | Post-MVP | That's multi-week planning |
-| D2.11 | **Style results are cached per brief version.** Each style (Safe / Balanced / Bold) is generated at most once per version; switching back shows the cached result. Changing style never uses a refresh. New style generations happen only after a Refresh creates a new version. | MVP (25 Oct) | Accountable advice must sound confident and consistent; re-rolling the same inputs into different picks makes the agent look unsure. Accepted tradeoff: no "another opinion" by re-rolling; the alternatives on each card and "Ask the agent" (D2.7) cover disagreement. Resolves US-3.7. |
-| D2.12 | **The weak spot doesn't depend on style.** Weak spots (agent flow step 3) are found once per version, without the style. Style changes only the candidate ranking and the captain choice. The "Why sell X?" reason is identical across styles. | MVP (25 Oct) | A diagnosis that changes with risk appetite undermines trust in the diagnosis itself |
+| D2.11 | **Risk tags** on the top pick and the 3 alternatives. All three use the same 3-gameweek window (D3.1). **Safe:** high floor (a sure starter, consistent returns, low rotation risk). **Balanced:** the highest expected points. **Bold:** high ceiling (explosive upside; accepts rotation or form risk). The top pick is the agent's best option overall, whatever its tag. The agent tries to span all three tags across the 4 options, but doesn't force a tag when the good options are all similar. | MVP (3 Nov) | The labels match how FPL managers already read "safe" and "bold"; no regeneration, no extra model cost; "I like my team" is answered by "Save the transfer" (D2.2), not by a tag |
 
 ## 3. Planning horizon
 
@@ -57,7 +58,7 @@
 |---|---|---|---|
 | D4.1 | Captain pick, vice-captain, and 1–2 alternatives, each with reasoning | MVP | Often worth more than transfers; low build cost |
 | D4.2 | Captain receipts ("You captained X: 12. The agent's pick, Y: 18.") | MVP | Same accountability angle |
-| D4.3 | The aggression toggle applies (Safe: the most-captained player; Bold: a differential) | MVP | Consistent risk control |
+| D4.3 | Captain options carry the same **risk tags** as transfers (D2.11): Safe = the highest floor, Balanced = the highest expected points, Bold = the highest ceiling. Ownership (most-captained vs. differential) is not used in the MVP. | MVP (revised 3 Nov) | Ownership only matters relative to rivals, and MVP advice uses the user's own points only (D6.1); ownership moves to rival mode (D6.2) |
 | D4.4 | Order: transfers first, then captain, so the incoming player can be captained | MVP | Correct dependency |
 | D4.5 | Starting XI and bench order advice | Post-MVP | The official app already does lineups well |
 
@@ -80,7 +81,7 @@
 | ID | Decision | Status | Rationale |
 |---|---|---|---|
 | D6.1 | MVP advice is based on **the user's own points only** | MVP | Simplicity |
-| D6.2 | Opt-in rival mode: a league ownership badge on candidates, differentials as the tie-breaker when scores are close, gap context ("3rd, 14 pts behind") | Phase 2 | Meets the "win your league" goal after the core works |
+| D6.2 | Opt-in rival mode: a league ownership badge on candidates, differentials as the tie-breaker when scores are close, gap context ("3rd, 14 pts behind"). Captain ownership logic (formerly D4.3) lives here. | Phase 2 | Meets the "win your league" goal after the core works |
 | D6.3 | Later: rival chip tracking, strategy that shifts with the points gap | Phase 2 | — |
 | D6.4 | Q5 (how a user picks a league) and Q6 (changing strategy based on league position) are deferred | Phase 2 | Only relevant with rival mode |
 
@@ -98,19 +99,19 @@
 | D7.8 | **Intent is inferred, never asked:** injury cover (the player sold was flagged), funding (a cheaper player bought, followed by an upgrade within 2 GWs), or points (the default). An optional "edit" link on the chip; never prompted. | MVP | No extra work for users |
 | D7.9 | **Linked receipts:** a suspected funding move shows "waiting to see what it funds (until GWx)"; when linked, both transfers become one combined receipt; with no follow-up within 2 GWs, it's judged alone | MVP | Fair to two-step plans, without a loophole |
 | D7.10 | **Decision journal:** an optional one-line note per move, entered **on the receipt when it appears** ("Why did you make this move?") and shown there afterward | MVP | Retention plus personal accountability; no extra step before the user leaves for FPL |
-| D7.11 | **Every move gets a receipt, built automatically after the deadline** by comparing the user's actual moves (from FPL history) with the brief version they last saw. Labels: **Followed** (made the agent's top pick or one of its alternatives), **Your own move** (a different transfer), **Ignored, rolled** (rolled when a transfer was suggested), **Ignored, transferred** (transferred when "Save it" was suggested). Captain and chip choices are compared the same way. | MVP | The user never reports anything; covering every move powers the followed-vs-ignored comparison |
+| D7.11 | **Every move gets a receipt, built automatically after the deadline** by comparing the user's actual moves (from FPL history) with **the brief's original picks** (not picks changed by a counter; see D17.6). Labels: **Followed** (made the agent's top pick or one of its alternatives), **Your own move** (a different transfer), **Ignored, rolled** (rolled when a transfer was suggested), **Ignored, transferred** (transferred when "Save it" was suggested). Captain and chip choices are compared the same way. | MVP (revised 3 Nov) | The user never reports anything; covering every move powers the followed-vs-ignored comparison; the agent's record stays its own |
 
 ## 8. Interaction and content
 
 | ID | Decision | Status | Rationale |
 |---|---|---|---|
-| D8.1 | **A dashboard with AI-generated cards** (not chat) | MVP | Follows from buttons-only input |
+| D8.1 | **A dashboard with AI-generated cards** (not chat) | MVP | Follows from the card-scoped counter design (D17.4) |
 | D8.2 | **Weekly brief order:** stick-or-diverge check-in → transfer cards (1–2) → captain → chip alert + status strip → next-week preview → receipts + 5-GW scorecard | MVP | The decision order of a real gameweek |
 | D8.3 | **Reasoning:** a summary line on each card, plus "Why?" to expand the full reasoning | MVP | Clean by default, with depth on demand |
-| D8.4 | **Full agent trace** (including replans) behind a collapsed "How the agent decided" link | MVP | A portfolio and recruiter signal at low cost |
-| D8.5 | "Ask the agent" panel (text and voice) on top of the dashboard | Post-MVP | See D2.7 |
-| D8.7 | **Reasoning detail is one surface with two tabs, "Why" and "How the agent decided."** Mobile: a bottom sheet over the brief. Desktop: a side panel next to the cards, with the selected card highlighted. "Why?" opens it on the Why tab; "How the agent decided" opens it on the trace tab. | MVP (core, 19 Oct) | Owner's call: chosen over expanding in the card plus a separate trace page/drawer, which felt random; one surface gives the reasoning a clear flow |
-| D8.6 | **Explain the weak spot, not just the replacement.** Each transfer card opens with a one-line "Why sell X?" reason. "Why?" expands in two parts: (1) why sell X, with X ranked against the next 2 weakest players in the squad; (2) why the top pick (form, fixtures, price, risks). Uses the weak-spot ranking the agent already produces (agent flow step 3). | MVP (core, 19 Oct) | "Why sell him?" is the first thing a manager questions; if the weak spot isn't convincing, the rest of the card isn't trusted |
+| D8.4 | **Full agent trace** behind a collapsed "How the agent decided" link. The trace shows the agent's actual tool calls, findings, and replans for this run (D17.1), plus the trace of any counters on the card. | MVP (revised 3 Nov) | A portfolio and recruiter signal at low cost; a real trace differs every run |
+| D8.5 | ~~"Ask the agent" panel (text and voice) on top of the dashboard~~ | Replaced by D17.4 (3 Nov) | An open chat would compete with AI-chat products (D1.6); counters stay on cards |
+| D8.7 | **Reasoning detail is one surface with two tabs, "Why" and "How the agent decided."** Mobile: a bottom sheet over the brief. Desktop: a side panel next to the cards, with the selected card highlighted. "Why?" opens it on the Why tab; "How the agent decided" opens it on the trace tab. **Counters also happen in this surface** (D17.4); exact placement is decided in the wireframes. | MVP (core, 19 Oct; revised 3 Nov) | Owner's call: chosen over expanding in the card plus a separate trace page/drawer, which felt random; one surface gives the reasoning a clear flow |
+| D8.6 | **Explain the weak spot, not just the replacement.** Each transfer card opens with a one-line "Why sell X?" reason. "Why?" expands in two parts: (1) why sell X, with X ranked against the next 2 weakest players in the squad; (2) why the top pick (form, fixtures, price, risks). Uses the weak-spot ranking the agent produces. | MVP (core, 19 Oct) | "Why sell him?" is the first thing a manager questions; if the weak spot isn't convincing, the rest of the card isn't trusted |
 
 ## 9. Accounts, onboarding, and policy
 
@@ -145,11 +146,9 @@
 |---|---|---|---|
 | D10.1 | **Email reminder only:** one per gameweek ("Your GW brief is ready — deadline in 24h"), with opt-out in Settings | MVP | Simple, reliable |
 | D10.2 | Push notifications | Rejected (including post-MVP) | Owner's decision |
-| D10.3 | **Briefs are generated on a schedule** (about 24h before the deadline) and stored | MVP | Opens instantly; fixes what counts as "the suggestion" for receipts; makes the email meaningful |
-| D10.4 | **A Refresh button** regenerates the brief as a new version; receipts track the version the user acted on. *Only when the inputs have changed: see D10.6.* | MVP | Handles breaking news |
-| D10.5 | **Refresh cap: 3 per gameweek** | MVP | Controls model costs |
-| D10.6 | **Refresh is driven by changed data.** The brief's inputs (squad, bank, free transfers, prices, injury news, fixtures) are hashed. If nothing changed, there's no regeneration: "Nothing has changed since [time]. Your brief still stands." That refresh doesn't count toward the 3. If something changed, the new version states what changed (for example, "Updated: Saka flagged 50%"). | MVP (25 Oct) | Refresh reacts to news instead of rolling again; same principle as D2.11 |
-| D10.7 | **Same inputs, same output.** Ranking and decision steps run at temperature 0 or near it. Wording may vary; picks may not. | MVP (25 Oct) | Consistency across versions and styles |
+| D10.3 | **Briefs are generated on a schedule** (about 24h before the deadline) and stored. A brief is never regenerated by the user; news after generation is handled by D17.9, and disagreement by counters (D17.4). | MVP (revised 3 Nov) | Opens instantly; fixes what counts as "the suggestion" for receipts; makes the email meaningful |
+| D10.4 | ~~A Refresh button regenerates the brief as a new version~~ | Replaced by D17.8 (3 Nov) | Counters plus the "News since this brief" banner cover the same need |
+| D10.5 | ~~Refresh cap: 3 per gameweek~~ | Replaced by D17.7 (3 Nov) | The counter cap controls model costs instead |
 
 ## 11. Platform, stack, and infrastructure
 
@@ -159,12 +158,12 @@
 | D11.2 | **Frontend:** Next.js + Tailwind + shadcn/ui on Vercel | MVP | The design system maps directly to Tailwind tokens and shadcn components |
 | D11.3 | **Auth and database:** Supabase (Postgres plus Google sign-in) | MVP | One service for both |
 | D11.4 | **Backend language:** Node | MVP | One language across the stack |
-| D11.5 | **No Render.** The agent is a **Node package in a monorepo** (`/apps/web`, `/packages/agent`, `/scripts/weekly`). **The weekly batch runs in GitHub Actions; Refresh runs as a Vercel function.** | MVP | Fathom already uses about 720–744 of Render's 750 free hours per workspace; sharing risks suspending both; a second account was rejected (likely terms violation) |
+| D11.5 | **No Render.** The agent is a **Node package in a monorepo** (`/apps/web`, `/packages/agent`, `/scripts/weekly`). **The weekly batch runs in GitHub Actions; the first brief and counters run as Vercel functions.** | MVP (revised 3 Nov) | Fathom already uses about 720–744 of Render's 750 free hours per workspace; sharing risks suspending both; a second account was rejected (likely terms violation) |
 | D11.6 | **Scheduler: GitHub Actions** (not Render cron, which is paid; not Supabase pg_cron) | MVP | Owner's choice; free |
-| D11.7 | **Daily data-refresh job** (GitHub Actions) that writes prices, injuries, and fixtures into Supabase | MVP (required) | Prevents Supabase's 7-day inactivity pause during international breaks; feeds the stick-or-diverge check-in |
+| D11.7 | **Daily data-refresh job** (GitHub Actions) that writes prices, injuries, and fixtures into Supabase, and flags news that affects stored briefs (D17.9) | MVP (required) | Prevents Supabase's 7-day inactivity pause during international breaks; feeds the stick-or-diverge check-in and the news banner |
 | D11.8 | **Email:** Nodemailer through Resend over SMTP | MVP | Provider can be swapped; requires your own domain with SPF/DKIM. Gmail SMTP only for testing. |
 | D11.9 | **Repository: public** | MVP | Portfolio visibility; secrets live in GitHub Secrets |
-| D11.10 | Fallback if a Refresh exceeds Vercel's 300-second Hobby limit: stream progress → refresh one card at a time → Render Starter ($7/mo) | Contingency | — |
+| D11.10 | Fallback if a first brief or a counter exceeds Vercel's 300-second Hobby limit: stream progress → tighten the tool-call budget → Render Starter ($7/mo) | Contingency (revised 3 Nov) | — |
 | D11.11 | Keep the app non-commercial: no ads, no donation link | MVP | Vercel Hobby is non-commercial only |
 | D11.12 | **Domain: `finalball.manavpkothari.dev`**, a subdomain of the owner's domain (DNS on Vercel, verified in Google Search Console 20 Oct). Google OAuth client set up 20 Oct: External, Testing with family as test users, scopes openid/email/profile only, redirect to the Supabase callback; Supabase Google provider and URL configuration done. Publish to production before public sharing (D16.6); the landing page and `/privacy` must be live on the subdomain first. | MVP | Same pattern as the owner's other projects; Google brand verification needs a homepage and privacy policy on an owned domain |
 
@@ -176,10 +175,11 @@
 | Team ID storage | localStorage | On the account (D9.2, D9.8) |
 | Database | None | Supabase (D11.3) |
 | Agent hosting | A separate service on Render | A Node package run by GitHub Actions and Vercel functions (D11.5) |
-| Suggestions | 3–4 ranked candidates per weak spot | Top pick + 3 alternatives; "Save the transfer"; up to 2 cards (D2.1–D2.3) |
+| Agent design | A fixed pipeline | A bounded tool-using loop (D17.1) |
+| Suggestions | 3–4 ranked candidates per weak spot | Top pick + 3 alternatives with risk tags; "Save the transfer"; up to 2 cards (D2.1–D2.3, D2.11) |
 | Chips, captaincy | Stretch | MVP (sections 4–5) |
-| "Why not X" | Fast-follow | Post-MVP via text/voice (D2.7) |
-| History and accuracy | Stretch | MVP core: receipts and scorecard (section 7) |
+| "Why not X" | Fast-follow | MVP via card-scoped counters (D2.7, D17.4) |
+| History and accuracy | Stretch | MVP core: receipts and scorecard (section 7), plus counter records (D17.6) |
 
 ## 13. Deliverables and design tooling
 
@@ -216,9 +216,9 @@
 |---|---|---|---|
 | D15.1 | **Sign-up and sign-in are one button, "Continue with Google."** The landing page shows "Get started" plus a small "Sign in" link, both leading to it. After Google, the app branches: new account → onboarding; team linked → weekly brief; no team linked → onboarding. | MVP | Separate screens make people wonder whether they have an account |
 | D15.2 | **No "Mark as done" step.** Users leave to make moves in the official app with no reason to return right away; the app reads actual transfers from FPL history after the deadline. | MVP | Owner's call: the step was redundant |
-| D15.3 | **Every new user gets a first brief right after onboarding,** without waiting for the weekly run. Assumed not to count toward the 3 refreshes. | MVP | Nobody should be told to wait to use the app |
+| D15.3 | **Every new user gets a first brief right after onboarding,** without waiting for the weekly run. It doesn't use any counters. | MVP (revised 3 Nov) | Nobody should be told to wait to use the app |
 | D15.4 | **The demo's live-team view uses the owner's own team,** good weeks and bad | MVP | Real results; fits the accountability positioning |
-| D15.5 | **A failed or timed-out refresh doesn't count toward the 3** | MVP | The user got nothing from it |
+| D15.5 | ~~A failed or timed-out refresh doesn't count toward the 3~~ | Replaced by D17.7 (3 Nov) | The same rule now applies to counters |
 | D15.6 | **Chips sit behind a "Want to use a chip?" toggle;** turning it on shows the chip strip. What shows when it's off is left open as a UI decision; the agent still works out chip advice every week regardless. | Open (UI) | Owner's call: reduces noise; doesn't affect logic |
 | D15.7 | **Changing team keeps old receipts** in the user's history, labeled with the old team | MVP | Deleting history on a team switch would be surprising; "Delete my data" covers a full wipe |
 
@@ -230,8 +230,26 @@
 | D16.2 | **Core MVP scope:** sign-in, team linking by **country + country rank + team name, with the paste-link-or-ID fallback** (D9.3–D9.5a, D9.7; see D16.9), on-demand brief with transfer and captain cards, reasoning and trace, landing and privacy pages, error states | Locked (revised 19 Oct) | The smallest version that delivers real advice, with onboarding tested from day one |
 | D16.3 | **Public sample brief page in the core:** the owner's team, real this week, no sign-in | Core | Recruiters and non-players can see the app working; never cut |
 | D16.4 | **The daily GitHub Actions job moves into the core** | Core | Keeps Supabase from pausing between visits |
-| D16.5 | **A per-user daily cap on generating briefs** until the full Refresh logic lands | Core | A public link invites traffic; controls model costs |
+| D16.5 | **A per-user daily cap on generating briefs** until scheduled briefs and the counter cap (D17.7) land | Core (revised 3 Nov) | A public link invites traffic; controls model costs |
 | D16.6 | **Google sign-in published to production** before sharing (basic scopes; confirm whether Google review is needed) | Core | In "Testing" status, only listed test users can sign in |
 | D16.7 | **Labeled "v0.1, MVP in progress"** on the site and portfolio, with the roadmap | Core | Honest framing shows scope judgment |
-| D16.8 | **Moved out of the core:** scheduling and email (including "Email me a link to finish on desktop," D9.6), Refresh, chips, preview and check-in, receipts and scorecard, curated demo, the style toggle, full motion and light mode | Deferred to weeks 26 Oct – 20 Nov | Sequenced in `plan.md` section 7 |
+| D16.8 | **Moved out of the core:** scheduling and email (including "Email me a link to finish on desktop," D9.6), chips, preview and check-in, receipts and scorecard, curated demo, full motion and light mode. *Refresh and the style toggle were also on this list; on 3 Nov they were replaced by counters (D17.4) and risk tags (D2.11).* | Deferred to weeks 26 Oct – 20 Nov | Sequenced in `plan.md` section 7 |
 | D16.9 | **Country-rank lookup moved back into the core** (reverses part of D16.2 and D16.8): country list, tie-size probe, page scan with fuzzy name match and neighbor-group check, real progress text, 5-second link option, 30-second cap, per-gameweek standings cache, and the link fallback | Core (19 Oct) | Owner's call: onboarding is the most important first impression, and family testing must catch problems with it early. Adds the most risk to Wednesday 21 Oct (`plan.md` section 7). |
+| D16.10 | **No scope cuts for the agent and counter work** (section 17). The core MVP has launched; the owner accepts the extra work without moving features out. | Locked (3 Nov) | Owner's call |
+
+## 17. Agent and counters (3 November 2026)
+
+| ID | Decision | Status | Rationale |
+|---|---|---|---|
+| D17.1 | **The agent is a bounded tool-using loop, not a fixed pipeline.** The model chooses which tool to call next, what to check, and when to stop. Code owns the FPL rules (budget, 3 per club, positions, free transfers) and validates every final output; an illegal move is sent back to the loop or the run fails. Budget: about 15 tool calls per brief, plus a time limit. | MVP | A fixed 10-step pipeline is a workflow, not an agent; the portfolio story depends on real agent behavior |
+| D17.2 | **Tools:** `get_squad`, `get_player`, `get_fixtures`, `get_news`, `search_candidates`, `check_constraints`, `compare`, `get_my_track_record`. All read-only. | MVP | Covers the decisions in a brief; nothing writes to FPL (D9.12) |
+| D17.3 | **The agent reads its own track record** through `get_my_track_record` (settled receipts and counter records) and can adjust (for example, "my last 3 Bold captain picks lost points"). Useful once receipts start to settle. | MVP | Ties agent behavior directly to the accountability positioning |
+| D17.4 | **Card-scoped counters.** Each transfer and captain card has "Counter this pick," which opens the reasoning surface (D8.7) with **quick replies** ("Keep him," "Why not [player]?," "Too risky," "I want to save") above a **text box**. No open chat. | MVP | Keeps the cards UI (D8.1); short, focused loops are cheap; quick replies keep mobile to one tap |
+| D17.5 | **The agent doesn't cave.** A counter runs its own loop (up to about 6 tool calls) and must re-check with tools before it answers. It ends with exactly one outcome on the card: **Holds** ("Still selling Saka: …"), **Changes for a new fact** ("You're right, his fixtures improve from GW12. New pick: …"), or **Accepts your preference** ("Keeping Saka is your call. Best move with him locked: …"). Off-topic counters are declined in one line, with no tool calls. | MVP | A counter that always flips the pick is worthless; a preference is not a fact, so the agent doesn't pretend it changed its mind |
+| D17.6 | **Counter records are separate from the agent's record.** The brief's original picks stay the agent's record for receipts (D7.11). Each counter outcome is stored and scored after the receipt window: agent held and the user followed; agent held and the user ignored it (who was right?); agent changed its pick (was the change right?). Scorecard headline: **"When you push back, who's usually right?"** | MVP | Prevents arguing the agent into your pick and crediting it as "Followed"; a new accountability metric no competitor shows |
+| D17.7 | **Counter cap: 10 per user per gameweek** (starting value; tune after testing). The message length is limited. A failed or timed-out counter doesn't count. | MVP | Controls model cost now that Refresh is gone |
+| D17.8 | **Refresh is removed** (replaces D10.4, D10.5, D15.5). Briefs come from the schedule and the first brief only. | MVP | Counters plus the news banner cover what Refresh did |
+| D17.9 | **"News since this brief" banner.** The daily job flags news (injury, suspension, availability change) for players named in a stored brief: the player to sell, the picks, and the captain options. The affected card shows the banner; the user counters to re-check. No automatic regeneration. | MVP | Covers breaking news at no model cost unless the user counters |
+| D17.10 | **Voice input:** a microphone button that fills the counter text box | Post-MVP | Adds no agent behavior over text; browser support varies; a paid speech API adds cost |
+| D17.11 | An open chat panel over the whole brief | Rejected | Competes with AI-chat products (D1.6) and breaks the cards UI |
+| D17.12 | **Other interactive controls** (for example, picking an alternative updates the captain card, D4.4) | Open | To be discussed after the documentation and wireframe updates |

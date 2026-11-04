@@ -15,6 +15,7 @@ interface FplPageData {
   freeTransfers: number
   bankTenths: number
   deadlinePassed: boolean
+  fplOk: boolean
 }
 
 async function loadFplData(teamId: number): Promise<FplPageData> {
@@ -52,9 +53,10 @@ async function loadFplData(teamId: number): Promise<FplPageData> {
       freeTransfers: ft,
       bankTenths: picks.entry_history.bank,
       deadlinePassed: isDeadlinePassed(bootstrap, gw),
+      fplOk: true,
     }
   } catch {
-    return { gameweek: 1, deadlineMs: null, freeTransfers: 1, bankTenths: 0, deadlinePassed: false }
+    return { gameweek: 1, deadlineMs: null, freeTransfers: 1, bankTenths: 0, deadlinePassed: false, fplOk: false }
   }
 }
 
@@ -88,8 +90,8 @@ export default async function BriefPage() {
   const fplData = await loadFplData(teamId)
   const gameweek = fplData.gameweek
 
-  // Then load the latest brief + version count for this gameweek in parallel
-  const [latestBriefRes, versionCountRes] = await Promise.all([
+  // Then load the latest brief + counter usage for this gameweek in parallel
+  const [latestBriefRes, counterUsageRes] = await Promise.all([
     supabase
       .from('briefs')
       .select('id, gameweek, version, status, trace, generated_at, change_summary')
@@ -100,15 +102,15 @@ export default async function BriefPage() {
       .limit(1)
       .maybeSingle(),
     supabase
-      .from('briefs')
-      .select('id', { count: 'exact', head: true })
+      .from('counter_usage')
+      .select('count')
       .eq('user_id', user.id)
       .eq('gameweek', gameweek)
-      .eq('status', 'ready'),
+      .maybeSingle(),
   ])
 
   const briefRow = latestBriefRes.data
-  const versionsThisGw = versionCountRes.count ?? 0
+  const countersThisGw = counterUsageRes.data?.count ?? 0
 
   // Load cards if we have a brief
   let briefData: BriefData | null = null
@@ -137,8 +139,9 @@ export default async function BriefPage() {
       deadlineMs={fplData.deadlineMs}
       freeTransfers={fplData.freeTransfers}
       bankTenths={fplData.bankTenths}
-      versionsThisGw={versionsThisGw}
+      countersThisGw={countersThisGw}
       isDeadlinePassed={fplData.deadlinePassed}
+      isFplUpdating={!fplData.fplOk}
       displayName={displayName}
       initial={initial}
       teamName={teamName}

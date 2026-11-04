@@ -1,3 +1,13 @@
+export { generateCounter } from './generateCounter.js'
+export type {
+  CounterCard,
+  TransferCounterCard,
+  SaveCounterCard,
+  CaptainCounterCard,
+  CounterOutcome,
+  CounterNewPick,
+  CounterResult,
+} from './generateCounter.js'
 export { generateTransfers } from './generateTransfers.js'
 export type { GenerateTransfersResult } from './generateTransfers.js'
 export { generateBrief, computeInputHash } from './generateBrief.js'
@@ -14,6 +24,7 @@ export { findWeakSpots } from './analysis/weakspot.js'
 export type { PlayerScore, WeakspotResult } from './analysis/weakspot.js'
 export { rankWithModel, SAVE_THRESHOLD_PTS } from './analysis/rank.js'
 export type { RankedPlan, RankedTransferCard, RankedAlternative, WhySection } from './analysis/rank.js'
+export type { RiskTag } from './analysis/candidates.js'
 export { MemoryCacheAdapter } from './fpl/cache.js'
 export type { CacheAdapter } from './fpl/cache.js'
 export {
