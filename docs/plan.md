@@ -34,7 +34,7 @@ All decisions referenced here (D-numbers) are in `decisions.md`.
   6. Receipts + 5-gameweek scorecard
 - **Risk tags** (Safe / Balanced / Bold) on transfer and captain options, all on a 3-gameweek window (D2.11, D4.3)
 - **Reasoning:** a summary line, "Why?" to expand, and the real agent trace (tool calls, findings, replans) behind "How the agent decided"
-- **Counters:** "Counter this pick" on transfer and captain cards; quick replies plus a text box; the agent re-checks with tools and holds, changes for a new fact, or accepts the user's preference; max 10 per gameweek (D17.4–D17.7)
+- **Counters:** "Counter this pick" on transfer and captain cards, plus **"Question this"** on the "Why sell?" section to challenge the sell candidate directly; quick replies (pick-counter: Keep him / Why not [player]? / Too risky / I want to save; weak-spot counter: X is performing fine / Why not sell Y instead? / I need X for cover) plus a text box; the agent re-checks with tools and holds, changes for a new fact, or accepts the user's preference; max 10 per gameweek shared across all counter types (D17.4–D17.7, D17.13)
 - **"News since this brief" banner** on affected cards (D17.9)
 - **Receipts:** transfers (with inferred intent and linked funding moves), captaincy, and chips; counter records; decision journal notes
 - **Scheduled generation**; **one email per gameweek**; no user Refresh (D17.8)

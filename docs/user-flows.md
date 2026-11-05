@@ -34,11 +34,11 @@ The cards run top to bottom in this order on one screen, with receipts and the 5
 
 Time runs top to bottom. Scheduled jobs do the heavy work before you arrive, so opening the brief is instant; only Refresh runs the agent while you wait. After the deadline, the daily job reads what you actually did, which is how receipts work without you logging anything.
 
-## Flow 4: Refresh
+## Flow 4: Counters
 
-&#91;embedded content: flow 4 · refresh · 2 decisions, 3 ends\]
+&#91;embedded content: flow 4 · counters · 3 entry points, 4 outcomes\]
 
-Each refresh saves a new version of the brief, and receipts track whichever version you acted on. A refresh that times out (the 5-minute server limit) keeps the old brief and gives the refresh back, so it doesn't count against the 3.
+Three things open the counter surface on a card: **Counter this pick** (on the transfer or captain card itself), **Question this** (in the "Why sell?" section, for challenging the sell candidate), and **Counter to re-check** (from a news banner). All three open the same reasoning detail view on the Counter tab, with quick replies above a text box. The quick replies differ by entry point: transfer and captain counters offer **Keep him / Why not [player]? / Too risky / I want to save**; weak-spot counters offer **X is performing fine / Why not sell Y instead? / I need X for cover**. Progress shows while the agent works. The outcome — Holds, Changes for a new fact, or Accepts your preference — is shown on the card once complete. A failed or timed-out counter doesn't count toward the 10-per-gameweek limit.
 
 ## Flow 5: Receipts and scorecard
 
@@ -70,7 +70,7 @@ These situations cut across the flows; each one needs its own message or state o
 | Brand-new team with no rank yet | "No rank yet?" link goes straight to the link fallback | 2 |
 | Returning user who never linked a team | Sent back to onboarding after Continue with Google | 1, 2 |
 | Team already linked to another account | "This team is already linked," with a way to report it | 2 |
-| Refresh limit reached (3 this gameweek) | Refresh button disabled, with "Resets when the next gameweek starts" | 4 |
+| Counter limit reached (10 this gameweek) | Counter button disabled, with "Resets when the next gameweek starts" | 4 |
 | Weekly email turned off or bounced | Brief is still ready in the app on schedule | 3, 6 |
 
 ## Screen list
@@ -87,8 +87,8 @@ The flows need 15 screens and 2 emails; this list is the input for the wireframe
 | 6 | Is this you? | 2 | Team name, manager name, rank, points; Confirm, Not me |
 | 7 | Team already linked | 2 | Explanation and a report option |
 | 8 | Weekly brief | 3, 4, 7 | Check-in, transfer cards, captain, chip area, next-week preview, receipts and scorecard, style toggle, Refresh; the first one is generated right after onboarding |
-| 9 | Reasoning detail | 3 | One view with two tabs, Why (why sell, then why the pick) and How the agent decided; bottom sheet on mobile, side panel on desktop |
-| 10 | Refreshing | 4 | Progress while regenerating; limit-reached message |
+| 9 | Reasoning detail | 3, 4 | One view with three tabs: Why (why sell, then why the pick), How the agent decided, and Counter; bottom sheet on mobile, side panel on desktop. The Counter tab holds quick replies and the text box for all counter types (pick counter, weak-spot counter, news re-check). |
+| 10 | Counter in progress | 4 | Progress steps while the counter agent works; limit-reached message |
 | 11 | Scorecard and receipts | 5 | 5-gameweek headline, receipt list (followed, your own move, ignored), pending and linked receipts, edit intent, journal note prompt |
 | 12 | Settings | 6 | Change team, weekly email on/off, delete my data, sign out |
 | 13 | Delete confirmation | 6 | What gets deleted, Confirm, Cancel |

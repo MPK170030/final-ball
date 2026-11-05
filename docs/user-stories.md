@@ -27,14 +27,14 @@
 | E1 First visit and sign-in | 4 | 1 |
 | E2 Onboarding: find your team | 9 | 2 |
 | E3 Weekly brief | 11 | 3 |
-| E4 Counters and news (replaces Refresh) | 4 | 4 |
+| E4 Counters and news (replaces Refresh) | 5 | 4 |
 | E5 Receipts, scorecard, and journal | 8 | 5 |
 | E6 Weekly email | 2 | 3 |
 | E7 Settings and privacy | 5 | 6 |
 | E8 Demo mode | 5 | 7 |
 | E9 Errors and edge states | 4 | All |
 | E10 Owner and system | 9 | Behind the scenes |
-| **Total MVP** | **61** | |
+| **Total MVP** | **62** | |
 
 ## Core MVP (by Sunday 25 October)
 
@@ -289,6 +289,17 @@ These stories shipped first (D16.2, D16.9); the rest follow by ~20 November (`pl
 - [ ] The message length is limited
 
 *Screen 9 · D17.7*
+
+### US-4.5 Question the sell pick
+*As a manager, I want to challenge why a specific player was identified as my squad's weak spot, so that the agent confirms its reasoning or finds a different player to sell.*
+- [ ] The "Why sell X?" section of a transfer card has a **Question this** button
+- [ ] It opens the reasoning surface (D8.7) on the **Counter** tab with quick replies (**"X is performing fine"**, **"Why not sell Y instead?"**, **"I need X for cover"**) above a text box
+- [ ] The agent compares the sell candidate against the other weak spots in the squad before answering
+- [ ] The answer is exactly one of: **Holds** (confirms X is the weakest with reasons), **Changes for a new fact** (names a different sell candidate and the best replacement), or **Accepts your preference** (acknowledges the preference, names the next-weakest alternative sell)
+- [ ] A `changed_fact` outcome names a new sell candidate from the squad; constraints are validated before the response is shown
+- [ ] Counts toward the same 10-per-gameweek counter cap
+
+*Screen 9 · D17.13, D17.5, D17.7*
 
 ### US-4.4 News since this brief
 *As a manager, I want to see when news breaks after my brief was made, so that I don't act on stale advice.*
