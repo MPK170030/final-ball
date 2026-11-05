@@ -402,6 +402,7 @@ export async function rankWithModel(
     const rankParams: Anthropic.MessageCreateParamsNonStreaming = {
       model,
       max_tokens: maxTokens,
+      temperature: 0,
       system: SYSTEM_PROMPT,
       tools: [PLAN_TOOL],
       tool_choice: { type: 'tool', name: 'submit_transfer_plan' },

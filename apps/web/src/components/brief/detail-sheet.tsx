@@ -418,7 +418,7 @@ function PanelContent({
   closeButtonClass = '',
 }: PanelContentProps) {
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 min-h-0 flex-col">
       {/* Header: label + title + tabs + close */}
       <div className="relative border-b border-border px-4 pt-5 pb-0 shrink-0">
         <button
@@ -468,7 +468,7 @@ function PanelContent({
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
         {tab === 'why' ? (
           whyContent
         ) : tab === 'counter' ? (
@@ -535,7 +535,7 @@ export function MobileDetailSheet({
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="h-[82dvh] rounded-t-2xl border-border p-0"
+        className="h-[82dvh] rounded-t-2xl border-border p-0 overflow-hidden"
       >
         <SheetTitle className="sr-only">{mainTitle}</SheetTitle>
         {/* Drag handle */}
@@ -603,7 +603,7 @@ export function DesktopDetailPanel({
     <aside
       role="region"
       aria-label="Transfer details"
-      className="border-border bg-card rounded-[14px] border flex flex-col flex-[1_1_360px] max-w-[420px] shrink-0 max-h-[calc(100dvh-8rem)] overflow-hidden"
+      className="border-border bg-card rounded-[14px] border flex flex-col flex-[1_1_360px] max-w-[420px] shrink-0 h-[calc(100dvh-8rem)] overflow-hidden"
     >
       <PanelContent
         label={label}
