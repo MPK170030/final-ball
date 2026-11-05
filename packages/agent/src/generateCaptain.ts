@@ -395,7 +395,6 @@ export async function generateCaptain(
     const captainParams: Anthropic.MessageCreateParamsNonStreaming = {
       model,
       max_tokens: 1024,
-      temperature: 0,
       system: SYSTEM_PROMPT,
       tools: [CAPTAIN_TOOL],
       tool_choice: { type: 'tool', name: 'submit_captain_pick' },

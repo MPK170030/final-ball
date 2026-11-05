@@ -404,18 +404,6 @@ describe('rankWithModel', () => {
     mockCreate.mockReset()
   })
 
-  it('calls messages.create with temperature: 0 (D10.7)', async () => {
-    const mockCreate = await getMockCreate()
-    mockCreate.mockResolvedValueOnce(makeModelResponse('P10'))
-
-    await rankWithModel(makeTransferPlan(), makeCtx())
-
-    expect(mockCreate).toHaveBeenCalledOnce()
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ temperature: 0 }),
-    )
-  })
-
   it('skips the model and returns save when plan.save is true', async () => {
     const mockCreate = await getMockCreate()
     const savePlan: TransferPlanResult = { save: true, saveReason: 'Strong squad.', transfers: [], trace: [] }
