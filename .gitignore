@@ -35,3 +35,8 @@ pnpm-debug.log*
 
 # Vercel
 .vercel
+
+# Local assets
+docs/*.html
+final-ball-logo/
+apps/web/src/lib/supabase/*.zip
