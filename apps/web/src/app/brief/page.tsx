@@ -89,6 +89,11 @@ export default async function BriefPage() {
   // Load FPL data first so we know the current gameweek for the version count query
   const fplData = await loadFplData(teamId)
   const gameweek = fplData.gameweek
+  // International break: deadline is > 8 days away — brief exists as a planning tool
+  const isEarlyPlanning =
+    !fplData.deadlinePassed &&
+    fplData.deadlineMs !== null &&
+    fplData.deadlineMs - Date.now() > 8 * 24 * 60 * 60 * 1000
 
   // Then load the latest brief + counter usage for this gameweek in parallel
   const [latestBriefRes, counterUsageRes] = await Promise.all([
@@ -141,6 +146,7 @@ export default async function BriefPage() {
       bankTenths={fplData.bankTenths}
       countersThisGw={countersThisGw}
       isDeadlinePassed={fplData.deadlinePassed}
+      isEarlyPlanning={isEarlyPlanning}
       isFplUpdating={!fplData.fplOk}
       displayName={displayName}
       initial={initial}

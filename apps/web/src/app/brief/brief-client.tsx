@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import NumberFlow from '@number-flow/react'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { AccountMenu } from '@/components/brief/account-menu'
@@ -21,6 +22,13 @@ import { cn } from '@/lib/utils'
 
 const COUNTER_CAP = 10
 
+type GenState =
+  | { phase: 'idle' }
+  | { phase: 'generating'; steps: string[] }
+  | { phase: 'error'; message: string }
+  | { phase: 'cap_reached' }
+  | { phase: 'fpl_updating' }
+
 interface BriefClientProps {
   initialBrief: BriefData | null
   gameweek: number
@@ -29,6 +37,7 @@ interface BriefClientProps {
   bankTenths: number
   countersThisGw: number
   isDeadlinePassed: boolean
+  isEarlyPlanning: boolean
   isFplUpdating: boolean
   displayName: string
   initial: string
@@ -128,19 +137,72 @@ export function BriefClient({
   bankTenths,
   countersThisGw,
   isDeadlinePassed,
+  isEarlyPlanning,
   isFplUpdating,
   displayName,
   initial,
   teamName,
 }: BriefClientProps) {
   const brief = initialBrief
+  const router = useRouter()
   const [detail, setDetail] = useState<DetailState | null>(null)
   const [isMobile, setIsMobile] = useState(true)
   const [counterStates, setCounterStates] = useState<Record<string, CounterPhase>>({})
   const [countersUsedThisSession, setCountersUsedThisSession] = useState(0)
+  const [genState, setGenState] = useState<GenState>({ phase: 'idle' })
   const reducedMotion = useReducedMotion()
   // Tracks the button that triggered the detail panel so focus returns on close
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null)
+
+  const triggerGenerate = useCallback(async () => {
+    setGenState({ phase: 'generating', steps: [] })
+    try {
+      const res = await fetch('/api/brief/generate', { method: 'POST' })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error('No stream')
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = JSON.parse(line.slice(6)) as { step?: string; status?: string; message?: string }
+          if (data.step) {
+            setGenState(prev =>
+              prev.phase === 'generating'
+                ? { phase: 'generating', steps: [...prev.steps, data.step!] }
+                : prev,
+            )
+          } else if (data.status === 'ready') {
+            router.refresh()
+            return
+          } else if (data.status === 'no_change') {
+            setGenState({ phase: 'idle' })
+            return
+          } else if (data.status === 'cap_reached') {
+            setGenState({ phase: 'cap_reached' })
+            return
+          } else if (data.status === 'fpl_updating') {
+            setGenState({ phase: 'fpl_updating' })
+            return
+          } else if (data.status === 'error') {
+            throw new Error(data.message ?? 'Generation failed')
+          }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Generation failed'
+      setGenState({ phase: 'error', message: msg })
+    }
+  }, [router])
 
   // Detect desktop vs mobile
   useEffect(() => {
@@ -150,6 +212,16 @@ export function BriefClient({
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  // Reset genState after router.refresh() delivers a new brief (ID changes)
+  const briefIdRef = useRef(initialBrief?.id ?? null)
+  useEffect(() => {
+    const newId = initialBrief?.id ?? null
+    if (newId !== briefIdRef.current) {
+      briefIdRef.current = newId
+      setGenState({ phase: 'idle' })
+    }
+  }, [initialBrief?.id])
 
   const activeCards = brief?.cards ?? []
 
@@ -169,9 +241,9 @@ export function BriefClient({
 
   // ── Detail handlers ─────────────────────────────────────────────────────────
   const openDetail = useCallback(
-    (cardId: string, tab: 'why' | 'trace' | 'counter', trigger?: HTMLButtonElement) => {
+    (cardId: string, tab: 'why' | 'trace' | 'counter', trigger?: HTMLButtonElement, counterType?: 'weakspot') => {
       detailTriggerRef.current = trigger ?? null
-      setDetail({ cardId, tab })
+      setDetail({ cardId, tab, counterType })
     },
     [],
   )
@@ -197,7 +269,7 @@ export function BriefClient({
         const res = await fetch('/api/counter', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cardId, quickReply, message }),
+          body: JSON.stringify({ cardId, quickReply, message, counterType: detail?.counterType }),
         })
 
         if (!res.ok) {
@@ -258,7 +330,7 @@ export function BriefClient({
         setCounterStates(prev => ({ ...prev, [cardId]: { phase: 'error', message: msg } }))
       }
     },
-    [detail?.cardId],
+    [detail?.cardId, detail?.counterType],
   )
 
   const resetCounter = useCallback(() => {
@@ -303,6 +375,14 @@ export function BriefClient({
       if (p.save) {
         return ['I want to make a transfer', "The savings don't feel worth it", 'What would you buy?']
       }
+      if (detail?.counterType === 'weakspot') {
+        const secondWeakest = p.whySellContext[1]?.player.web_name
+        return [
+          `${p.sell.player.web_name} is performing fine`,
+          secondWeakest ? `Why not sell ${secondWeakest}?` : 'Who else should I sell?',
+          'I need them for cover',
+        ]
+      }
       return [
         `Keep ${p.sell.player.web_name}`,
         `Why not ${p.topPick.player.web_name}?`,
@@ -312,7 +392,7 @@ export function BriefClient({
     }
 
     return []
-  }, [detail?.cardId, activeCards])
+  }, [detail?.cardId, detail?.counterType, activeCards])
 
   const transferCards = activeCards.filter((c: BriefCard) => c.type === 'transfer')
   const captainCard = activeCards.find((c: BriefCard) => c.type === 'captain')
@@ -357,6 +437,13 @@ export function BriefClient({
         <BriefBanner variant="info">
           <strong>The GW {gameweek} deadline has passed.</strong> This brief is read-only. Your GW{' '}
           {gameweek + 1} brief arrives once the window opens.
+        </BriefBanner>
+      )}
+      {isEarlyPlanning && !isDeadlinePassed && (
+        <BriefBanner variant="warning">
+          <strong>International break — planning brief.</strong> FPL data can change significantly
+          during the break. Don&apos;t make your actual transfer yet — wait until closer to the GW{' '}
+          {gameweek} deadline to act on this advice.
         </BriefBanner>
       )}
 
@@ -426,6 +513,45 @@ export function BriefClient({
                   </div>
                 </div>
 
+                {/* Refresh brief — available any time before deadline */}
+                {brief && !isDeadlinePassed && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    {genState.phase === 'idle' && (
+                      <button
+                        type="button"
+                        onClick={triggerGenerate}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                      >
+                        Refresh brief
+                      </button>
+                    )}
+                    {genState.phase === 'generating' && (
+                      <span className="text-[13px] text-muted-foreground">Refreshing your brief…</span>
+                    )}
+                    {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
+                      <>
+                        <span className="text-[13px] text-muted-foreground">
+                          {genState.phase === 'fpl_updating'
+                            ? 'FPL is updating — try again shortly.'
+                            : genState.message}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={triggerGenerate}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                        >
+                          Retry
+                        </button>
+                      </>
+                    )}
+                    {genState.phase === 'cap_reached' && (
+                      <span className="text-[13px] text-muted-foreground">
+                        Brief limit reached for GW {gameweek}.
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Risk tag key */}
                 <RiskTagKey />
 
@@ -454,6 +580,9 @@ export function BriefClient({
                               onCounterClick={(t) => openDetail(card.id, 'counter', t)}
                               counterDisabled={cardCounterDisabled}
                               counterDisabledReason={counterDisabledReason}
+                              onWeakspotCounterClick={(t) => openDetail(card.id, 'counter', t, 'weakspot')}
+                              weakspotCounterDisabled={cardCounterDisabled}
+                              weakspotCounterDisabledReason={counterDisabledReason}
                               isSelected={detail?.cardId === card.id}
                             />
                           </motion.div>
@@ -527,10 +656,71 @@ export function BriefClient({
                   </AnimatePresence>
                 ) : (
                   <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
-                    <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
-                    <p className="text-small mt-1 text-muted-foreground">
-                      Your brief will arrive on schedule before the deadline.
-                    </p>
+                    {isEarlyPlanning ? (
+                      <>
+                        {genState.phase === 'idle' && (
+                          <>
+                            <p className="text-body-strong text-foreground">No planning brief yet for GW {gameweek}</p>
+                            <p className="text-small mt-1 text-muted-foreground">
+                              Explore your options early — but wait until closer to the deadline to make your actual transfer.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={triggerGenerate}
+                              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                            >
+                              Generate planning brief
+                            </button>
+                          </>
+                        )}
+                        {genState.phase === 'generating' && (
+                          <>
+                            <p className="text-body-strong text-foreground">Generating your planning brief…</p>
+                            {genState.steps.length > 0 && (
+                              <ul className="mt-2 space-y-0.5">
+                                {genState.steps.map((s, i) => (
+                                  <li key={i} className="text-small text-muted-foreground">{s}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        )}
+                        {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
+                          <>
+                            <p className="text-body-strong text-foreground">
+                              {genState.phase === 'fpl_updating' ? 'FPL is updating' : 'Something went wrong'}
+                            </p>
+                            <p className="text-small mt-1 text-muted-foreground">
+                              {genState.phase === 'fpl_updating'
+                                ? 'Try again in a few minutes.'
+                                : genState.message}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={triggerGenerate}
+                              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                            >
+                              Try again
+                            </button>
+                          </>
+                        )}
+                        {genState.phase === 'cap_reached' && (
+                          <>
+                            <p className="text-body-strong text-foreground">Brief limit reached for GW {gameweek}</p>
+                            <p className="text-small mt-1 text-muted-foreground">
+                              You&apos;ve generated the maximum number of briefs for this gameweek.
+                            </p>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
+                        <p className="text-small mt-1 text-muted-foreground">
+                          Your brief will arrive on schedule before the deadline.
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
 

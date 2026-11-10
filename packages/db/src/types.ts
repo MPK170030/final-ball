@@ -296,6 +296,36 @@ export interface Database {
         }
         Relationships: []
       }
+      email_log: {
+        Row: {
+          id: string
+          user_id: string
+          gameweek: number
+          brief_id: string | null
+          status: 'sent' | 'failed'
+          error: string | null
+          sent_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          gameweek: number
+          brief_id?: string | null
+          status: 'sent' | 'failed'
+          error?: string | null
+          sent_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          gameweek?: number
+          brief_id?: string | null
+          status?: 'sent' | 'failed'
+          error?: string | null
+          sent_at?: string
+        }
+        Relationships: []
+      }
       sample_brief: {
         Row: {
           key: string

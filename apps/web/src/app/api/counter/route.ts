@@ -5,7 +5,7 @@ import {
   FplClient,
   MemoryCacheAdapter,
 } from '@finalball/agent'
-import type { CounterCard } from '@finalball/agent'
+import type { CounterCard, WeakspotCounterCard } from '@finalball/agent'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
@@ -27,8 +27,32 @@ function buildCounterCard(
   cardType: string,
   payload: unknown,
   gameweek: number,
+  counterType?: string,
 ): CounterCard | null {
   const p = payload as Record<string, unknown>
+
+  if (counterType === 'weakspot' && cardType === 'transfer') {
+    if (p['save'] === true) return null
+    const sell = p['sell'] as Record<string, unknown>
+    const sellPlayer = sell['player'] as Record<string, unknown>
+    const whySellContext = (p['whySellContext'] as Array<Record<string, unknown>>) ?? []
+    return {
+      type: 'weakspot',
+      gameweek,
+      sellPlayerName: sellPlayer['web_name'] as string,
+      sellPlayerPos: ELEMENT_TYPE_TO_POS[sellPlayer['element_type'] as number] ?? 'MID',
+      whySell: p['whySell'] as string,
+      weakSpots: whySellContext.slice(0, 3).map(ws => {
+        const wsPlayer = ws['player'] as Record<string, unknown>
+        const wsScore = ws['score'] as Record<string, unknown>
+        return {
+          name: wsPlayer['web_name'] as string,
+          pos: ELEMENT_TYPE_TO_POS[wsPlayer['element_type'] as number] ?? '?',
+          scoreTotal: (wsScore['total'] as number) ?? 0,
+        }
+      }),
+    } satisfies WeakspotCounterCard
+  }
 
   if (cardType === 'captain') {
     const captain = p['captain'] as Record<string, unknown>
@@ -103,14 +127,14 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  let body: { cardId?: string; quickReply?: string | null; message?: string }
+  let body: { cardId?: string; quickReply?: string | null; message?: string; counterType?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
   }
 
-  const { cardId, quickReply = null, message } = body
+  const { cardId, quickReply = null, message, counterType } = body
   if (!cardId || !message?.trim()) {
     return NextResponse.json({ error: 'missing_fields' }, { status: 400 })
   }
@@ -163,7 +187,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Build CounterCard ────────────────────────────────────────────────────
-  const counterCard = buildCounterCard(cardRow.type, cardRow.payload, gameweek)
+  const counterCard = buildCounterCard(cardRow.type, cardRow.payload, gameweek, counterType)
   if (!counterCard) {
     return NextResponse.json({ error: 'unsupported_card_type' }, { status: 422 })
   }
