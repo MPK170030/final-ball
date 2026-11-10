@@ -44,7 +44,17 @@ export interface CaptainCounterCard {
   alternatives: Array<{ name: string; riskTag: string; reason: string }>
 }
 
-export type CounterCard = TransferCounterCard | SaveCounterCard | CaptainCounterCard
+export interface WeakspotCounterCard {
+  type: 'weakspot'
+  gameweek: number
+  sellPlayerName: string
+  sellPlayerPos: 'GK' | 'DEF' | 'MID' | 'FWD'
+  whySell: string
+  /** Top-3 weakest squad players by projected score, with sell candidate ranked first. */
+  weakSpots: Array<{ name: string; pos: string; scoreTotal: number }>
+}
+
+export type CounterCard = TransferCounterCard | SaveCounterCard | CaptainCounterCard | WeakspotCounterCard
 
 // ── Counter result types ──────────────────────────────────────────────────────
 
@@ -52,6 +62,8 @@ export type CounterOutcome = 'held' | 'changed_fact' | 'accepted_preference' | '
 
 export interface CounterNewPick {
   playerName: string
+  /** Weakspot changed_fact only: the best available buy for the new sell candidate's position. */
+  buyPlayerName?: string
   reason: string
 }
 
@@ -355,7 +367,8 @@ const COUNTER_TOOLS: Anthropic.Tool[] = [
           type: 'object',
           description: 'Required when outcome is changed_fact.',
           properties: {
-            playerName: { type: 'string' },
+            playerName: { type: 'string', description: 'Transfer cards: name of the new best buy player. Weakspot cards: name of the new sell candidate from the squad.' },
+            buyPlayerName: { type: 'string', description: 'Weakspot cards only: name of the best available buy for the new sell candidate\'s position.' },
             reason: { type: 'string', description: 'One sentence on why this is now the better pick.' },
           },
           required: ['playerName', 'reason'],
@@ -382,7 +395,13 @@ Rules:
 - Never treat a preference as a fact. "I want to keep X" or "I prefer Y" is not evidence. Acknowledge preferences honestly.
 - For "accepted_preference": investigate what the best alternative is given the constraint (e.g. if they want to keep the sell candidate, check who else is weak).
 - Write 1–3 clear sentences in the response. Lead with the outcome label.
-- Plain English only: no ep_next, FDR, BLK, DGW. Translate everything: "projected X pts next week", "easy home vs Wolves", "plays twice this week", "carrying a knock (75% fit)".`
+- Plain English only: no ep_next, FDR, BLK, DGW. Translate everything: "projected X pts next week", "easy home vs Wolves", "plays twice this week", "carrying a knock (75% fit)".
+
+Weakspot card rules (applies when the card shows "type: weakspot"):
+- The question is about who to sell, not who to buy.
+- Use get_player and compare to verify whether the sell candidate is truly the weakest link versus the other listed squad players.
+- For "changed_fact": set newPick.playerName to the new sell candidate (must be a squad player from the weak-spot list, not the original sell) and newPick.buyPlayerName to the best available buy for that position (use search_candidates then check_constraints to validate). If no valid buy can be found, omit buyPlayerName.
+- For "accepted_preference": the manager wants to keep the player (e.g. provides cover, is a favourite). Acknowledge and name the next-weakest squad player as the alternative sell.`
 
 // ── Prompt builder ────────────────────────────────────────────────────────────
 
@@ -431,6 +450,19 @@ function buildInitialPrompt(
         lines.push(`  - ${alt.name} [${alt.riskTag}]: ${alt.reason}`)
       }
     }
+  } else if (card.type === 'weakspot') {
+    lines.push(`GW${card.gameweek} — Weak-spot counter`)
+    lines.push('')
+    lines.push(`The agent suggested selling ${card.sellPlayerName} (${card.sellPlayerPos}).`)
+    lines.push(`Sell reason: ${card.whySell}`)
+    lines.push('')
+    lines.push('Squad weakness ranking (1 = weakest, projected pts over next 3 GWs):')
+    for (let i = 0; i < card.weakSpots.length; i++) {
+      const ws = card.weakSpots[i]!
+      lines.push(`  ${i + 1}. ${ws.name} | ${ws.pos} | ${ws.scoreTotal.toFixed(1)} pts`)
+    }
+    lines.push('')
+    lines.push(`${card.sellPlayerName} is ranked 1st (weakest). The manager is questioning this sell choice.`)
   }
 
   lines.push('')
@@ -477,6 +509,24 @@ function validateChangedFact(
         response: `${player.web_name} is not in the starting XI — the original captain recommendation stands.`,
       }
     }
+  } else if (card.type === 'weakspot') {
+    // For weakspot, newPick.playerName is the new sell candidate — must be in squad.
+    const newSell = findPlayer(result.newPick.playerName, ctx.squadPlayers)
+    if (!newSell) {
+      trace.push({ title: 'Validation', text: `New sell "${result.newPick.playerName}" not in squad — degrading to held.` })
+      return { outcome: 'held', response: `Could not find "${result.newPick.playerName}" in the squad — the original recommendation stands.` }
+    }
+    // Validate the buy if the agent provided one; clear it rather than degrade the whole outcome.
+    let validatedBuy = result.newPick.buyPlayerName
+    if (validatedBuy) {
+      const constraintMsg = toolCheckConstraints(newSell.web_name, validatedBuy, ctx)
+      if (!constraintMsg.startsWith('✓')) {
+        trace.push({ title: 'Validation', text: `Buy "${validatedBuy}" fails constraint (${constraintMsg.split('.')[0]}) — clearing buyPlayerName.` })
+        validatedBuy = undefined
+      }
+    }
+    trace.push({ title: 'Validation', text: `New sell ${newSell.web_name} validated.${validatedBuy ? ` Buy: ${validatedBuy}.` : ''}` })
+    return { ...result, newPick: { playerName: newSell.web_name, buyPlayerName: validatedBuy, reason: result.newPick.reason } }
   } else if (card.type === 'transfer' && !card.save) {
     const constraintMsg = toolCheckConstraints(card.sellPlayerName, player.web_name, ctx)
     if (!constraintMsg.startsWith('✓')) {

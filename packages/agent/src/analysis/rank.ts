@@ -198,7 +198,7 @@ Writing rules:
  * If safe and bold leaders both equal the top pick (all metrics converge),
  * the remaining slots fill with next-best-by-total and all get Balanced.
  */
-function selectAndTagOptions(
+export function selectAndTagOptions(
   pool: Candidate[],
 ): Array<{ candidate: Candidate; tag: RiskTag }> {
   if (pool.length === 0) return []

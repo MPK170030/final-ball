@@ -138,7 +138,7 @@ function captainShortlist(
  *
  * If all metrics converge on the same player all picks get Balanced.
  */
-function assignCaptainTags(
+export function assignCaptainTags(
   picks: Array<{ player: Player; epNext: number }>,
 ): RiskTag[] {
   if (picks.length === 0) return []

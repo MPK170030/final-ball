@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { generateCounter } from './generateCounter.js'
 import type { AgentContext } from './context.js'
-import type { TransferCounterCard, CaptainCounterCard } from './generateCounter.js'
+import type { TransferCounterCard, CaptainCounterCard, WeakspotCounterCard } from './generateCounter.js'
 import { makePlayer, makeBootstrap, makeFixtures, makePick } from './analysis/__tests__/helpers.js'
 
 // ── Anthropic SDK mock ─────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ function makeToolResponse(tools: Array<{ id: string; name: string; input: Record
 function submitResponse(
   outcome: string,
   response: string,
-  newPick?: { playerName: string; reason: string },
+  newPick?: { playerName: string; buyPlayerName?: string; reason: string },
 ) {
   const input: Record<string, unknown> = { outcome, response }
   if (newPick) input['newPick'] = newPick
@@ -148,6 +148,20 @@ const captainCard: CaptainCounterCard = {
   vcRiskTag: 'balanced',
   vcReason: 'Solid floor.',
   alternatives: [],
+}
+
+// squad players ranked weakest → strongest: Sell(id=3 MID), BenchMid(id=13 MID), BenchDef(id=14 DEF)
+const weakspotCard: WeakspotCounterCard = {
+  type: 'weakspot',
+  gameweek: 8,
+  sellPlayerName: 'Sell',
+  sellPlayerPos: 'MID',
+  whySell: 'Consistently poor scores and an upcoming tough run.',
+  weakSpots: [
+    { name: 'Sell', pos: 'MID', scoreTotal: 3.2 },
+    { name: 'BenchMid', pos: 'MID', scoreTotal: 3.8 },
+    { name: 'BenchDef', pos: 'DEF', scoreTotal: 4.1 },
+  ],
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -301,6 +315,89 @@ describe('generateCounter', () => {
     const result = await generateCounter(captainCard, null, 'Captain BenchMid instead.', makeCtx())
 
     expect(result.outcome).toBe('held')
+  })
+
+  // ── Weakspot counters ─────────────────────────────────────────────────────────
+
+  it('weakspot: returns held when sell candidate is still the weakest', async () => {
+    mockCreate.mockResolvedValueOnce(dataToolResponse('compare', { playerA: 'Sell', playerB: 'BenchMid' }))
+    mockCreate.mockResolvedValueOnce(
+      submitResponse('held', 'Still selling Sell: they remain the weakest link in your squad.')
+    )
+
+    const result = await generateCounter(weakspotCard, null, 'Sell is performing fine', makeCtx())
+
+    expect(result.outcome).toBe('held')
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+  })
+
+  it('weakspot: returns accepted_preference when manager wants to keep the sell candidate', async () => {
+    mockCreate.mockResolvedValueOnce(dataToolResponse('get_player', { name: 'BenchMid' }))
+    mockCreate.mockResolvedValueOnce(
+      submitResponse('accepted_preference', 'Your call: keeping Sell is fine. Next-weakest is BenchMid.')
+    )
+
+    const result = await generateCounter(
+      weakspotCard,
+      'I need them for cover',
+      'I need them for cover · they provide depth',
+      makeCtx(),
+    )
+
+    expect(result.outcome).toBe('accepted_preference')
+  })
+
+  it('weakspot: returns changed_fact with new sell + buy when squad player is weaker', async () => {
+    // BenchMid (id=13, MID, £4.5m) is in squad; AltMid (id=20, MID, £7.5m) is valid buy
+    // Need bank ≥ £3.0m so that BenchMid (£4.5m) + bank ≥ £7.5m (AltMid cost)
+    const ctx = { ...makeCtx(), bank: 30 }
+    mockCreate.mockResolvedValueOnce(dataToolResponse('compare', { playerA: 'Sell', playerB: 'BenchMid' }))
+    mockCreate.mockResolvedValueOnce(
+      submitResponse('changed_fact', 'New pick: BenchMid is actually weaker. Sell BenchMid and buy AltMid.', {
+        playerName: 'BenchMid',
+        buyPlayerName: 'AltMid',
+        reason: 'BenchMid has lower projected points and no value as cover.',
+      })
+    )
+
+    const result = await generateCounter(weakspotCard, null, 'Why not sell BenchMid?', ctx)
+
+    expect(result.outcome).toBe('changed_fact')
+    expect(result.newPick?.playerName).toBe('BenchMid')
+    expect(result.newPick?.buyPlayerName).toBe('AltMid')
+  })
+
+  it('weakspot: degrades to held when new sell candidate is not in the squad', async () => {
+    mockCreate.mockResolvedValueOnce(dataToolResponse('get_player', { name: 'Ghost' }))
+    mockCreate.mockResolvedValueOnce(
+      submitResponse('changed_fact', 'New pick: Ghost.', {
+        playerName: 'Ghost',
+        buyPlayerName: 'AltMid',
+        reason: 'Ghost is weaker.',
+      })
+    )
+
+    const result = await generateCounter(weakspotCard, null, 'What about Ghost?', makeCtx())
+
+    expect(result.outcome).toBe('held')
+  })
+
+  it('weakspot: clears buyPlayerName (but keeps sell change) when buy fails constraints', async () => {
+    // BenchMid is in squad (valid sell); Defender is DEF while BenchMid is MID — constraint fails
+    mockCreate.mockResolvedValueOnce(dataToolResponse('compare', { playerA: 'Sell', playerB: 'BenchMid' }))
+    mockCreate.mockResolvedValueOnce(
+      submitResponse('changed_fact', 'Sell BenchMid, buy Defender.', {
+        playerName: 'BenchMid',
+        buyPlayerName: 'Defender',
+        reason: 'BenchMid is weaker.',
+      })
+    )
+
+    const result = await generateCounter(weakspotCard, null, 'Sell BenchMid.', makeCtx())
+
+    expect(result.outcome).toBe('changed_fact')
+    expect(result.newPick?.playerName).toBe('BenchMid')
+    expect(result.newPick?.buyPlayerName).toBeUndefined()
   })
 
   // ── Error handling ────────────────────────────────────────────────────────────

@@ -88,6 +88,9 @@ interface TransferCardProps {
   onCounterClick?: (trigger: HTMLButtonElement) => void
   counterDisabled?: boolean
   counterDisabledReason?: string
+  onWeakspotCounterClick?: (trigger: HTMLButtonElement) => void
+  weakspotCounterDisabled?: boolean
+  weakspotCounterDisabledReason?: string
   isSelected?: boolean
 }
 
@@ -100,6 +103,9 @@ export function TransferCard({
   onCounterClick,
   counterDisabled = false,
   counterDisabledReason,
+  onWeakspotCounterClick,
+  weakspotCounterDisabled = false,
+  weakspotCounterDisabledReason,
   isSelected = false,
 }: TransferCardProps) {
   const label = totalCards > 1 ? `Transfer ${cardIndex + 1} of ${totalCards}` : 'Transfer'
@@ -217,10 +223,24 @@ export function TransferCard({
       </div>
 
       {/* Why sell — bold title inline with reason */}
-      <p className="text-[14px] leading-5 text-foreground md:text-[15px] md:leading-[22px]">
-        <strong className="font-semibold">Why sell {sell.player.web_name}?</strong>
-        {' '}{whySell}
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-[14px] leading-5 text-foreground md:text-[15px] md:leading-[22px]">
+          <strong className="font-semibold">Why sell {sell.player.web_name}?</strong>
+          {' '}{whySell}
+        </p>
+        {onWeakspotCounterClick && (
+          <button
+            type="button"
+            onClick={(e) => onWeakspotCounterClick(e.currentTarget)}
+            disabled={weakspotCounterDisabled}
+            title={weakspotCounterDisabledReason}
+            aria-label={`Question whether ${sell.player.web_name} is the right player to sell`}
+            className="self-start inline-flex min-h-[44px] items-center border-0 bg-transparent p-0 text-[13px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+          >
+            Question this
+          </button>
+        )}
+      </div>
 
       {/* Desktop 2-column / Mobile single column */}
       <div className="flex flex-col gap-3.5 md:grid md:grid-cols-2 md:gap-7">

@@ -159,10 +159,10 @@ function CounterOutcome({
   }
 
   const newPickObj = newPick as Record<string, unknown> | null
-  const newPickName =
-    ((newPickObj?.player as Record<string, unknown>)?.web_name as string | undefined) ??
-    (newPickObj?.name as string | undefined)
+  const newPickName = newPickObj?.playerName as string | undefined
+  const newPickBuyName = newPickObj?.buyPlayerName as string | undefined
   const newPickReason = newPickObj?.reason as string | undefined
+  const isWeakspotChange = outcome === 'changed_fact' && !!newPickBuyName
 
   return (
     <div className="space-y-4 py-2">
@@ -172,11 +172,26 @@ function CounterOutcome({
         </p>
         <p className="text-[14px] leading-5 text-foreground">{response}</p>
         {outcome === 'changed_fact' && newPickName && (
-          <div className="mt-3 space-y-0.5 border-t border-border pt-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              New pick
-            </p>
-            <p className="text-[16px] leading-6 font-semibold text-foreground">{newPickName}</p>
+          <div className="mt-3 space-y-1 border-t border-border pt-3">
+            {isWeakspotChange ? (
+              <>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  New sell candidate
+                </p>
+                <p className="text-[16px] leading-6 font-semibold text-foreground">{newPickName}</p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  Best buy
+                </p>
+                <p className="text-[16px] leading-6 font-semibold text-foreground">{newPickBuyName}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  New pick
+                </p>
+                <p className="text-[16px] leading-6 font-semibold text-foreground">{newPickName}</p>
+              </>
+            )}
             {newPickReason && (
               <p className="text-[13px] leading-[18px] text-foreground">{newPickReason}</p>
             )}

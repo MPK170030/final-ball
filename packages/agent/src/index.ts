@@ -4,6 +4,7 @@ export type {
   TransferCounterCard,
   SaveCounterCard,
   CaptainCounterCard,
+  WeakspotCounterCard,
   CounterOutcome,
   CounterNewPick,
   CounterResult,
@@ -25,6 +26,8 @@ export type { PlayerScore, WeakspotResult } from './analysis/weakspot.js'
 export { rankWithModel, SAVE_THRESHOLD_PTS } from './analysis/rank.js'
 export type { RankedPlan, RankedTransferCard, RankedAlternative, WhySection } from './analysis/rank.js'
 export type { RiskTag } from './analysis/candidates.js'
+export { buildCardRows } from './buildCards.js'
+export type { EnrichMeta, CardRow } from './buildCards.js'
 export { MemoryCacheAdapter } from './fpl/cache.js'
 export type { CacheAdapter } from './fpl/cache.js'
 export {

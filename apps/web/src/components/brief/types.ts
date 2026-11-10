@@ -101,4 +101,5 @@ export type CounterPhase =
 export interface DetailState {
   cardId: string
   tab: 'why' | 'trace' | 'counter'
+  counterType?: 'weakspot'
 }

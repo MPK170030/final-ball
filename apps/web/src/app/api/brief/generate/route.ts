@@ -7,116 +7,16 @@ import {
   FplError,
   MemoryCacheAdapter,
   getActiveGameweek,
+  buildCardRows,
 } from '@finalball/agent'
-import type { BriefResult } from '@finalball/agent'
+import type { EnrichMeta } from '@finalball/agent'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const VERSION_CAP = 3
-
-// ── Card payload builder ──────────────────────────────────────────────────────
-
-type CardInsert = {
-  brief_id: string
-  type: 'transfer' | 'captain'
-  position: number
-  payload: unknown
-}
-
-type EnrichMeta = {
-  clubs: Map<number, string>
-  nextFixtureForTeam: Map<number, { opponent: string; isHome: boolean } | null>
-  freeTransfers: number
-  gameweekId: number
-}
-
-function withClub<T extends { player: { team: number } }>(
-  obj: T,
-  clubs: Map<number, string>,
-): T & { clubShortName?: string } {
-  const name = clubs.get(obj.player.team)
-  return name ? { ...obj, clubShortName: name } : obj
-}
-
-function buildCardRows(briefId: string, result: BriefResult, enrich: EnrichMeta): CardInsert[] {
-  const { clubs, nextFixtureForTeam, freeTransfers, gameweekId } = enrich
-  const rows: CardInsert[] = []
-  let pos = 1
-
-  if (result.save) {
-    const sellPlayer = result.whySellContext[0]
-    rows.push({
-      brief_id: briefId,
-      type: 'transfer',
-      position: pos++,
-      payload: {
-        save: true,
-        reason: result.saveReason ?? '',
-        bestOption: result.bestOptionForComparison
-          ? withClub(result.bestOptionForComparison, clubs)
-          : null,
-        sellPlayer: sellPlayer
-          ? {
-              player: sellPlayer.player,
-              sellingPrice: sellPlayer.player.now_cost,
-              clubShortName: clubs.get(sellPlayer.player.team),
-            }
-          : null,
-        freeTransfersNextGw: Math.min(2, freeTransfers + 1),
-        nextGw: gameweekId + 1,
-      },
-    })
-  } else {
-    for (const card of result.transfers) {
-      rows.push({
-        brief_id: briefId,
-        type: 'transfer',
-        position: pos++,
-        payload: {
-          save: false,
-          sell: withClub(card.sell, clubs),
-          sellingPrice: card.sellingPrice,
-          topPick: withClub(card.topPick, clubs),
-          topPickReason: card.topPickReason,
-          topPickWhy: card.topPickWhy,
-          topPickRiskTag: card.topPickRiskTag,
-          alternatives: card.alternatives.map(alt => ({
-            ...alt,
-            candidate: withClub(alt.candidate, clubs),
-          })),
-          whySell: card.whySell,
-          swapReason: card.swapReason,
-          replans: card.replans,
-          whySellContext: result.whySellContext.map(ws => withClub(ws, clubs)),
-        },
-      })
-    }
-  }
-
-  function enrichCaptainPick(pick: typeof result.captain.captain) {
-    return {
-      ...pick,
-      clubShortName: clubs.get(pick.player.team),
-      nextFixture: nextFixtureForTeam.get(pick.player.team) ?? null,
-    }
-  }
-
-  rows.push({
-    brief_id: briefId,
-    type: 'captain',
-    position: pos,
-    payload: {
-      captain: enrichCaptainPick(result.captain.captain),
-      vc: enrichCaptainPick(result.captain.vc),
-      alternatives: result.captain.alternatives.map(enrichCaptainPick),
-    },
-  })
-
-  return rows
-}
+const VERSION_CAP = 5
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
@@ -261,14 +161,16 @@ export async function POST(_req: NextRequest) {
       }
 
       // Insert cards
+      const cardRows = buildCardRows(result, {
+        clubs,
+        nextFixtureForTeam,
+        freeTransfers: result.meta.freeTransfers,
+        gameweekId: gwId,
+      } satisfies EnrichMeta).map(r => ({ ...r, brief_id: briefId! }))
+
       const { error: cardsErr } = await serviceClient
         .from('cards')
-        .insert(buildCardRows(briefId, result, {
-          clubs,
-          nextFixtureForTeam,
-          freeTransfers: result.meta.freeTransfers,
-          gameweekId: gwId,
-        }))
+        .insert(cardRows)
 
       if (cardsErr) throw new Error(cardsErr.message)
 
