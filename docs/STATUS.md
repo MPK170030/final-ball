@@ -1,4 +1,4 @@
-# Status — Tue 10 November 2026
+# Status — Tue 11 November 2026
 
 ## Done
 
@@ -37,23 +37,18 @@
 - **Mobile sheet and panel scrolling fixes.**
 - **generateCounter unit tests** for all quick-reply paths across transfer, captain, save, and weakspot card types.
 - **generateBrief unit tests** added (`generateBrief.test.ts`).
-- **CI fix:** `daily-refresh.yml` corrected to use `NEXT_PUBLIC_SUPABASE_URL` secret name; `SUPABASE_SERVICE_ROLE_KEY` added to GitHub secrets.
+- **CI fix:** `daily-refresh.yml` and `weekly-brief.yml` corrected to use `NEXT_PUBLIC_SUPABASE_URL` secret name; all required GitHub secrets set.
+- **Scheduled briefs + weekly email (D16.9):** `scripts/weekly` generates briefs for all opted-in users ~24h before deadline and sends a brief-ready email via Resend. Tested end-to-end: 3 briefs generated, emails delivered.
 
 ---
 
 ## Not yet (full MVP scope, target ~20 November)
 
-### Scheduled briefs + weekly email (code done — owner actions pending)
-- `scripts/weekly` package + `weekly-brief.yml` GitHub Actions job: generates briefs for all opted-in users when the GW deadline is 20–28h away.
-- `buildCards.ts` extracted into `packages/agent` (shared by route + weekly job).
-- `email_log` migration (`006_email_log.sql`) + types added.
-- **Owner action required before first run:**
-  1. Run `006_email_log.sql` in Supabase SQL Editor.
-  2. Resend DNS records already added to `finalball.manavpkothari.dev` — confirm SPF/DKIM validated in Resend dashboard (allow 24–48h propagation if recently added).
-  3. Add GitHub secrets: `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (e.g. `claude-sonnet-4-6`), `RESEND_API_KEY`, `APP_URL` (`https://finalball.manavpkothari.dev`). `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are already set.
-  4. Test with a manual dispatch: set `force: true` in the `workflow_dispatch` input to bypass the time-window check.
-- Once tested end-to-end: remove the per-user daily brief-generation cap (D16.5).
-- "Email me a link to finish on my computer" (D9.6, US-2.5).
+### Remove daily brief-generation cap (D16.5) — next up
+- Now that scheduled briefs and the counter cap are live, remove the per-user daily cap on on-demand brief generation.
+
+### "Email me a link to finish on my computer" (D9.6, US-2.5)
+- Send a magic link to the user's Google account email so they can complete onboarding on a desktop.
 
 ### Stick-or-diverge check-in + next-week preview (D3.2–D3.3)
 - Next-week preview card on the brief.
