@@ -13,6 +13,21 @@
   to   { background-position: -200% 0; }
 }
 
+@keyframes brief-card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.brief-card-anim {
+  animation: brief-card-in 0.3s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brief-card-anim {
+    animation: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring;
