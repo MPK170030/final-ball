@@ -9,7 +9,7 @@ export type EnrichMeta = {
 }
 
 export type CardRow = {
-  type: 'transfer' | 'captain'
+  type: 'transfer' | 'captain' | 'preview' | 'lineup'
   position: number
   payload: unknown
 }
@@ -85,13 +85,51 @@ export function buildCardRows(result: BriefResult, enrich: EnrichMeta): CardRow[
 
   rows.push({
     type: 'captain',
-    position: pos,
+    position: pos++,
     payload: {
       captain: enrichCaptainPick(result.captain.captain),
       vc: enrichCaptainPick(result.captain.vc),
       alternatives: result.captain.alternatives.map(enrichCaptainPick),
     },
   })
+
+  if (result.lineup) {
+    rows.push({
+      type: 'lineup',
+      position: pos++,
+      payload: {
+        gameweek: enrich.gameweekId,
+        formation: result.lineup.formation,
+        starting: result.lineup.starting.map(s => ({
+          player: s.player,
+          clubShortName: clubs.get(s.player.team),
+          nextFixture: nextFixtureForTeam.get(s.player.team) ?? null,
+          epNext: s.epNext,
+          isDoubtful: s.isDoubtful,
+        })),
+        bench: result.lineup.bench.map(s => ({
+          player: s.player,
+          clubShortName: clubs.get(s.player.team),
+          epNext: s.epNext,
+          isDoubtful: s.isDoubtful,
+        })),
+        swapsIn: result.lineup.swapsIn,
+        swapsOut: result.lineup.swapsOut,
+        hasChanges: result.lineup.hasChanges,
+      },
+    })
+  }
+
+  if (result.nextWeekPreview) {
+    rows.push({
+      type: 'preview',
+      position: pos,
+      payload: {
+        text: result.nextWeekPreview,
+        nextGameweek: result.meta.gameweekId + 1,
+      },
+    })
+  }
 
   return rows
 }

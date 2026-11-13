@@ -60,7 +60,7 @@
 | D4.2 | Captain receipts ("You captained X: 12. The agent's pick, Y: 18.") | MVP | Same accountability angle |
 | D4.3 | Captain options carry the same **risk tags** as transfers (D2.11): Safe = the highest floor, Balanced = the highest expected points, Bold = the highest ceiling. Ownership (most-captained vs. differential) is not used in the MVP. | MVP (revised 3 Nov) | Ownership only matters relative to rivals, and MVP advice uses the user's own points only (D6.1); ownership moves to rival mode (D6.2) |
 | D4.4 | Order: transfers first, then captain, so the incoming player can be captained | MVP | Correct dependency |
-| D4.5 | Starting XI and bench order advice | Post-MVP | The official app already does lineups well |
+| D4.5 | **Lineup and bench-order recommendation** from the post-transfer squad. Formation chosen to maximise expected points (all 9 valid FPL formations tried). Bench in auto-sub order (highest-scoring first, GK last). Flags doubtful starters. Shows recommended swaps vs the user's current FPL lineup. Algorithmic — no extra model calls or cost. | MVP (revised 12 Nov) | Adds value over the FPL app by surfacing injury risk in the starting XI and bench order for auto-subs; zero extra cost |
 
 ## 5. Chips (2026/27 rules)
 
@@ -129,7 +129,7 @@
 | D9.4 | **Fallback: the URL step.** An "Open FPL" button; when the user returns, the app detects the copied link (or accepts a pasted link or ID, extracting the number after `/entry/`); a short visual guide (desktop, and mobile browser, since the FPL app hides addresses) | MVP | For new teams with no rank yet, very large tied groups, or name mismatches |
 | D9.5 | **Confirmation:** "Is this you?" card (team name, manager name, rank, points) with Confirm and Re-enter | MVP | Instant recognition; prevents wrong matches |
 | D9.5a | **One account per team:** a team that's already claimed shows "This team is already linked," with a way to report it | MVP | Reduces impersonation |
-| D9.6 | **"Email me a link to finish on desktop"** escape hatch, offered in the URL fallback on phones | MVP | For mobile users stuck at the fallback |
+| D9.6 | ~~"Email me a link to finish on desktop"~~ | Rejected (12 Nov) | The feature is a workaround for a mobile UX problem, not a real need. If onboarding is well-designed for mobile there's no reason to switch devices. Added complexity (magic link, email send, session handoff) for a marginal use case. |
 | D9.7 | **Logout only on an explicit "Cancel / do this later"**, then redirect home. Switching tabs or idling keeps the onboarding state. The next login asks for the ID again. | MVP | The flow itself sends users to another tab |
 | D9.8 | One team per account, changeable in Settings. There's no way to verify ownership. | MVP | Accepted risk; the data is public |
 | D9.9 | Reading the ID from an FPL tab, iframe, or session; signing in to FPL inside an embedded in-app browser | Rejected | Blocked by the same-origin policy and CORS; Google blocks its sign-in in embedded browsers; requires a native app; resembles phishing |
@@ -233,7 +233,7 @@
 | D16.5 | **A per-user daily cap on generating briefs** until scheduled briefs and the counter cap (D17.7) land | Core (revised 3 Nov) | A public link invites traffic; controls model costs |
 | D16.6 | **Google sign-in published to production** before sharing (basic scopes; confirm whether Google review is needed) | Core | In "Testing" status, only listed test users can sign in |
 | D16.7 | **Labeled "v0.1, MVP in progress"** on the site and portfolio, with the roadmap | Core | Honest framing shows scope judgment |
-| D16.8 | **Moved out of the core:** scheduling and email (including "Email me a link to finish on desktop," D9.6), chips, preview and check-in, receipts and scorecard, curated demo, full motion and light mode. *Refresh and the style toggle were also on this list; on 3 Nov they were replaced by counters (D17.4) and risk tags (D2.11).* | Deferred to weeks 26 Oct – 20 Nov | Sequenced in `plan.md` section 7 |
+| D16.8 | **Moved out of the core:** scheduling and email, chips, preview and check-in, receipts and scorecard, curated demo, full motion and light mode. *Refresh and the style toggle were also on this list; on 3 Nov they were replaced by counters (D17.4) and risk tags (D2.11). D9.6 (email link to finish on desktop) was rejected 12 Nov.* | Deferred to weeks 26 Oct – 20 Nov | Sequenced in `plan.md` section 7 |
 | D16.9 | **Country-rank lookup moved back into the core** (reverses part of D16.2 and D16.8): country list, tie-size probe, page scan with fuzzy name match and neighbor-group check, real progress text, 5-second link option, 30-second cap, per-gameweek standings cache, and the link fallback | Core (19 Oct) | Owner's call: onboarding is the most important first impression, and family testing must catch problems with it early. Adds the most risk to Wednesday 21 Oct (`plan.md` section 7). |
 | D16.10 | **No scope cuts for the agent and counter work** (section 17). The core MVP has launched; the owner accepts the extra work without moving features out. | Locked (3 Nov) | Owner's call |
 

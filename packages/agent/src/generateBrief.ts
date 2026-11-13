@@ -12,6 +12,8 @@ import type { RankedTransferCard, RankedAlternative } from './analysis/rank.js'
 import { scorePlayer } from './analysis/score.js'
 import { assignCaptainTags } from './generateCaptain.js'
 import type { CaptainResult, CaptainPick } from './generateCaptain.js'
+import { computeLineup } from './analysis/lineup.js'
+import type { LineupResult } from './analysis/lineup.js'
 import { getUpcomingGwIds } from './analysis/fixtures.js'
 import { numberSteps } from './trace.js'
 import type { TraceStep, TraceEntry } from './trace.js'
@@ -42,6 +44,10 @@ export interface BriefResult {
   }
   /** Top-3 weakest players for the "Why sell?" expansion (D8.6, D17.4). */
   whySellContext: PlayerScore[]
+  /** One-line next-week preview (D3.2, US-3.11). Absent during blank or international-break GWs. */
+  nextWeekPreview?: string
+  /** Recommended starting XI and bench order from the post-transfer squad (D4.5). */
+  lineup?: LineupResult
 }
 
 // ── Input hash and change summary (D10.6) ─────────────────────────────────────
@@ -88,6 +94,49 @@ function computeChangeSummary(ctx: AgentContext): string {
     .map(p => `${p.web_name} ${p.chance_of_playing_next_round}%`)
     .slice(0, 2)
   return flagged.length > 0 ? `Updated — ${flagged.join(', ')} flagged` : 'FPL data updated'
+}
+
+// ── Next-week preview (D3.2, US-3.11) ────────────────────────────────────────
+
+function computeNextWeekPreview(ranked: PlayerScore[]): string | undefined {
+  const outfield = ranked.filter(ps => ps.player.element_type !== 1)
+
+  const hasGw2 = outfield.some(ps => {
+    const gw2 = ps.score.perGw[1]
+    return gw2 != null && gw2.fdr !== null && gw2.points > 0
+  })
+  if (!hasGw2) return undefined
+
+  const groups = new Map<number, { sum: number; count: number; gwId: number }>()
+  for (const ps of outfield) {
+    const gw2 = ps.score.perGw[1]
+    const pts = gw2?.points ?? 0
+    const gwId = gw2?.gwId ?? 0
+    const existing = groups.get(ps.player.element_type)
+    if (existing) {
+      existing.sum += pts
+      existing.count += 1
+      if (gwId > 0) existing.gwId = gwId
+    } else {
+      groups.set(ps.player.element_type, { sum: pts, count: 1, gwId })
+    }
+  }
+
+  if (groups.size === 0) return undefined
+
+  const averages = Array.from(groups.entries()).map(([type, { sum, count, gwId }]) => ({
+    type,
+    avg: sum / count,
+    gwId,
+  }))
+
+  if (averages.every(a => a.avg === 0)) return undefined
+
+  const weakest = averages.reduce((min, a) => (a.avg < min.avg ? a : min))
+  const posName: Record<number, string> = { 2: 'defence', 3: 'midfield', 4: 'attack' }
+  const name = posName[weakest.type] ?? 'squad'
+
+  return `GW${weakest.gwId} could expose your ${name} — next week’s weak spot.`
 }
 
 // ── Internal model I/O types ──────────────────────────────────────────────────
@@ -603,7 +652,33 @@ function buildInitialPrompt(weakspots: WeakspotResult, ctx: AgentContext): strin
   return lines.join('\n')
 }
 
-// ── Post-transfer starting XI helper ─────────────────────────────────────────
+// ── Post-transfer squad helpers ───────────────────────────────────────────────
+
+function applyTransfersToFullSquad(
+  transfers: Array<{ sellId: number; buyId: number; buyPlayer: Player }>,
+  ctx: AgentContext,
+): Player[] {
+  const playerById = new Map<number, Player>(ctx.bootstrap.elements.map(p => [p.id, p]))
+  for (const t of transfers) {
+    playerById.set(t.buyId, t.buyPlayer)
+  }
+  const posToId = new Map<number, number>(ctx.picks.picks.map(pick => [pick.position, pick.element]))
+  for (const t of transfers) {
+    for (const [pos, id] of posToId) {
+      if (id === t.sellId) {
+        posToId.set(pos, t.buyId)
+        break
+      }
+    }
+  }
+  const squad: Player[] = []
+  for (let pos = 1; pos <= 15; pos++) {
+    const id = posToId.get(pos)
+    const player = id !== undefined ? playerById.get(id) : undefined
+    if (player) squad.push(player)
+  }
+  return squad
+}
 
 function applyTransfersToStartingXI(
   transfers: Array<{ sellId: number; buyId: number; buyPlayer: Player }>,
@@ -645,6 +720,7 @@ function resolveSubmission(
   t0: number,
   inputHash: string,
   changeSummary: string,
+  nextWeekPreview: string | undefined,
 ): BriefResult | null {
   // 1. Resolve transfer cards
   const transfers: RankedTransferCard[] = []
@@ -818,6 +894,16 @@ function resolveSubmission(
     text: `${submission.recommendation === 'save' ? 'Save' : `${transfers.length} transfer${transfers.length > 1 ? 's' : ''}`}. Captain: ${captainPlayer.web_name}. VC: ${vcPlayer.web_name}.`,
   })
 
+  const postTransferSquad =
+    transfers.length > 0
+      ? applyTransfersToFullSquad(
+          transfers.map(t => ({ sellId: t.sell.player.id, buyId: t.topPick.player.id, buyPlayer: t.topPick.player })),
+          ctx,
+        )
+      : ctx.squadPlayers
+
+  const lineup = postTransferSquad.length === 15 ? computeLineup(postTransferSquad) : undefined
+
   return {
     save: submission.recommendation === 'save',
     saveReason: submission.saveReason,
@@ -835,6 +921,8 @@ function resolveSubmission(
       changeSummary,
     },
     whySellContext: weakspots.whySellContext,
+    nextWeekPreview,
+    lineup,
   }
 }
 
@@ -865,6 +953,7 @@ function buildDeterministicBrief(
   t0: number,
   inputHash: string,
   changeSummary: string,
+  nextWeekPreview: string | undefined,
 ): BriefResult {
   trace.push({ title: 'Deterministic fallback', text: 'Using scored pipeline for transfers and captain.' })
 
@@ -895,7 +984,17 @@ function buildDeterministicBrief(
     }
   })
 
-  // Post-transfer starting XI
+  // Post-transfer squad (all 15) and starting XI
+  const postTransferSquad =
+    transfers.length > 0
+      ? applyTransfersToFullSquad(
+          transfers.map(t => ({ sellId: t.sell.player.id, buyId: t.topPick.player.id, buyPlayer: t.topPick.player })),
+          ctx,
+        )
+      : ctx.squadPlayers
+
+  const lineup = postTransferSquad.length === 15 ? computeLineup(postTransferSquad) : undefined
+
   const startingXI =
     transfers.length > 0
       ? applyTransfersToStartingXI(
@@ -958,6 +1057,8 @@ function buildDeterministicBrief(
       changeSummary,
     },
     whySellContext: weakspots.whySellContext,
+    nextWeekPreview,
+    lineup,
   }
 }
 
@@ -993,6 +1094,7 @@ export async function generateBrief(
     ctx.bootstrap,
     ctx.freeTransfers,
   )
+  const nextWeekPreview = computeNextWeekPreview(weakspots.ranked)
 
   const trace: TraceEntry[] = []
   const usage = { inputTokens: 0, outputTokens: 0 }
@@ -1040,7 +1142,7 @@ export async function generateBrief(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       trace.push({ title: 'Error', text: `Model call failed: ${msg} — using deterministic fallback.` })
-      return buildDeterministicBrief(weakspots, ctx, trace, usage, t0, inputHash, changeSummary)
+      return buildDeterministicBrief(weakspots, ctx, trace, usage, t0, inputHash, changeSummary, nextWeekPreview)
     }
 
     usage.inputTokens += response.usage.input_tokens
@@ -1079,11 +1181,11 @@ export async function generateBrief(
         text: `${usage.inputTokens} input / ${usage.outputTokens} output tokens.`,
       })
 
-      const result = resolveSubmission(raw, weakspots, ctx, trace, usage, t0, inputHash, changeSummary)
+      const result = resolveSubmission(raw, weakspots, ctx, trace, usage, t0, inputHash, changeSummary, nextWeekPreview)
       if (result) return result
 
       trace.push({ title: 'Fallback', text: 'Submission validation failed — using deterministic fallback.' })
-      return buildDeterministicBrief(weakspots, ctx, trace, usage, t0, inputHash, changeSummary)
+      return buildDeterministicBrief(weakspots, ctx, trace, usage, t0, inputHash, changeSummary, nextWeekPreview)
     }
 
     // Execute data tool calls
@@ -1112,5 +1214,5 @@ export async function generateBrief(
   }
 
   trace.push({ title: 'Fallback', text: 'Loop ended without submission — using deterministic fallback.' })
-  return buildDeterministicBrief(weakspots, ctx, trace, usage, t0, inputHash, changeSummary)
+  return buildDeterministicBrief(weakspots, ctx, trace, usage, t0, inputHash, changeSummary, nextWeekPreview)
 }

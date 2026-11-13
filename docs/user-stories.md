@@ -596,7 +596,7 @@ These stories shipped first (D16.2, D16.9); the rest follow by ~20 November (`pl
 | BL-3 | As a manager, I want the agent to plan funding moves across weeks, so that I can afford premium players | Post-MVP | D2.10 |
 | BL-4 | As a manager, I want a full squad built for my Wildcard or Free Hit, so that I don't build 15 players by hand | Post-MVP | D5.2 |
 | BL-5 | As a manager, I want a season timeline of the best chip weeks, so that I can plan chips ahead | Post-MVP | D5.6 |
-| BL-6 | As a manager, I want lineup and bench-order advice, so that I don't leave points on the bench | Post-MVP | D4.5 |
+| BL-6 | As a manager, I want lineup and bench-order advice, so that I don't leave points on the bench | MVP (revised 12 Nov) | D4.5 |
 | BL-7 | As a desktop manager, I want a one-click "Find my ID" bookmarklet, so that onboarding takes one click | Post-MVP | D9.10 |
 | BL-8 | As a manager, I want to compare myself with rivals in my mini-league, so that I can win it | Phase 2 | D6.2 |
 | BL-9 | As a manager, I want differentials favored when the agent's options are close, so that I gain ground on rivals | Phase 2 | D6.2 |

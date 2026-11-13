@@ -16,8 +16,6 @@ import { createServiceClient } from '@/lib/supabase/service'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const VERSION_CAP = 5
-
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(_req: NextRequest) {
@@ -90,7 +88,7 @@ export async function POST(_req: NextRequest) {
         throw err
       }
 
-      // Fetch all ready briefs for this user+gameweek (version cap + hash check)
+      // Fetch all ready briefs for this user+gameweek (hash check)
       const { data: existingBriefs } = await serviceClient
         .from('briefs')
         .select('version, input_hash, generated_at')
@@ -98,14 +96,6 @@ export async function POST(_req: NextRequest) {
         .eq('gameweek', gameweek)
         .eq('status', 'ready')
         .order('version', { ascending: false })
-
-      const readyCount = existingBriefs?.length ?? 0
-
-      // Version cap: 3 per gameweek (D10.5, US-4.2)
-      if (readyCount >= VERSION_CAP) {
-        await send({ status: 'cap_reached' })
-        return
-      }
 
       // Hash comparison: if latest brief has a hash, check whether inputs changed (D10.6)
       const latestBrief = existingBriefs?.[0]

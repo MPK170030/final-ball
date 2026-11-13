@@ -150,7 +150,7 @@ export interface Database {
         Row: {
           id: string
           brief_id: string
-          type: 'transfer' | 'captain' | 'chip' | 'preview' | 'checkin'
+          type: 'transfer' | 'captain' | 'chip' | 'preview' | 'checkin' | 'lineup'
           position: number
           payload: unknown
           created_at: string
@@ -158,7 +158,7 @@ export interface Database {
         Insert: {
           id?: string
           brief_id: string
-          type: 'transfer' | 'captain' | 'chip' | 'preview' | 'checkin'
+          type: 'transfer' | 'captain' | 'chip' | 'preview' | 'checkin' | 'lineup'
           position: number
           payload: unknown
           created_at?: string
