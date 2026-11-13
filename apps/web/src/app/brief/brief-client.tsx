@@ -176,6 +176,14 @@ export function BriefClient({
     }
   }, [initialBrief?.id])
 
+  // Auto-generate on first visit when no brief exists yet
+  useEffect(() => {
+    if (!initialBrief && !isDeadlinePassed && !isFplUpdating) {
+      triggerGenerate()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const activeCards = brief?.cards ?? []
 
   // ── Counter state ───────────────────────────────────────────────────────────
@@ -671,10 +679,45 @@ export function BriefClient({
                       </>
                     ) : (
                       <>
-                        <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
-                        <p className="text-small mt-1 text-muted-foreground">
-                          Your brief will arrive on schedule before the deadline.
-                        </p>
+                        {genState.phase === 'idle' && (
+                          <>
+                            <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
+                            <p className="text-small mt-1 text-muted-foreground">
+                              Your brief will arrive on schedule before the deadline.
+                            </p>
+                          </>
+                        )}
+                        {genState.phase === 'generating' && (
+                          <>
+                            <p className="text-body-strong text-foreground">Generating your brief…</p>
+                            {genState.steps.length > 0 && (
+                              <ul className="mt-2 space-y-0.5">
+                                {genState.steps.map((s, i) => (
+                                  <li key={i} className="text-small text-muted-foreground">{s}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        )}
+                        {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
+                          <>
+                            <p className="text-body-strong text-foreground">
+                              {genState.phase === 'fpl_updating' ? 'FPL is updating' : 'Something went wrong'}
+                            </p>
+                            <p className="text-small mt-1 text-muted-foreground">
+                              {genState.phase === 'fpl_updating'
+                                ? 'Try again in a few minutes.'
+                                : genState.message}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={triggerGenerate}
+                              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                            >
+                              Try again
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
