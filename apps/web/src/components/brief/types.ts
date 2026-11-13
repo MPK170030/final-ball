@@ -68,11 +68,34 @@ export interface CaptainCardPayload {
   alternatives: CaptainPickWithMeta[]
 }
 
+export interface PreviewCardPayload {
+  text: string
+  nextGameweek: number
+}
+
+export interface LineupSlotPayload {
+  player: Player
+  clubShortName?: string
+  nextFixture?: NextFixture | null
+  epNext: number
+  isDoubtful: boolean
+}
+
+export interface LineupCardPayload {
+  gameweek: number
+  formation: string
+  starting: LineupSlotPayload[]
+  bench: LineupSlotPayload[]
+  swapsIn: Player[]
+  swapsOut: Player[]
+  hasChanges: boolean
+}
+
 export interface BriefCard {
   id: string
-  type: 'transfer' | 'captain'
+  type: 'transfer' | 'captain' | 'preview' | 'lineup'
   position: number
-  payload: TransferCardPayload | CaptainCardPayload
+  payload: TransferCardPayload | CaptainCardPayload | PreviewCardPayload | LineupCardPayload
 }
 
 export interface BriefData {

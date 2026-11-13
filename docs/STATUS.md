@@ -1,4 +1,4 @@
-# Status — Tue 10 November 2026
+# Status — Thu 12 November 2026
 
 ## Done
 
@@ -37,27 +37,15 @@
 - **Mobile sheet and panel scrolling fixes.**
 - **generateCounter unit tests** for all quick-reply paths across transfer, captain, save, and weakspot card types.
 - **generateBrief unit tests** added (`generateBrief.test.ts`).
-- **CI fix:** `daily-refresh.yml` corrected to use `NEXT_PUBLIC_SUPABASE_URL` secret name; `SUPABASE_SERVICE_ROLE_KEY` added to GitHub secrets.
+- **CI fix:** `daily-refresh.yml` and `weekly-brief.yml` corrected to use `NEXT_PUBLIC_SUPABASE_URL` secret name; all required GitHub secrets set.
+- **Scheduled briefs + weekly email (D16.9):** `scripts/weekly` generates briefs for all opted-in users ~24h before deadline and sends a brief-ready email via Resend. Tested end-to-end: 3 briefs generated, emails delivered.
+- **Daily brief-generation cap removed (D16.5):** `VERSION_CAP` and all `cap_reached` SSE/UI logic removed from `route.ts` and `brief-client.tsx`; on-demand generation is now uncapped.
+- **Next-week preview card (D3.2, US-3.11):** `computeNextWeekPreview()` derives a one-line fixture-difficulty summary from GW+1 data; `PreviewCard` component renders it below the captain card. Absent during blank or international-break GWs.
+- **Lineup and bench-order recommendation (D4.5, BL-6):** `computeLineup()` tries all 9 valid FPL formations, picks highest expected-points XI from post-transfer squad. `LineupCard` shows starting XI grouped by position, bench in auto-sub order, swap badges, doubtful indicators. DB migration `007` adds `'lineup'` to cards check constraint.
 
 ---
 
-## Not yet (full MVP scope, target ~20 November)
-
-### Scheduled briefs + weekly email (code done — owner actions pending)
-- `scripts/weekly` package + `weekly-brief.yml` GitHub Actions job: generates briefs for all opted-in users when the GW deadline is 20–28h away.
-- `buildCards.ts` extracted into `packages/agent` (shared by route + weekly job).
-- `email_log` migration (`006_email_log.sql`) + types added.
-- **Owner action required before first run:**
-  1. Run `006_email_log.sql` in Supabase SQL Editor.
-  2. Resend DNS records already added to `finalball.manavpkothari.dev` — confirm SPF/DKIM validated in Resend dashboard (allow 24–48h propagation if recently added).
-  3. Add GitHub secrets: `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (e.g. `claude-sonnet-4-6`), `RESEND_API_KEY`, `APP_URL` (`https://finalball.manavpkothari.dev`). `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are already set.
-  4. Test with a manual dispatch: set `force: true` in the `workflow_dispatch` input to bypass the time-window check.
-- Once tested end-to-end: remove the per-user daily brief-generation cap (D16.5).
-- "Email me a link to finish on my computer" (D9.6, US-2.5).
-
-### Stick-or-diverge check-in + next-week preview (D3.2–D3.3)
-- Next-week preview card on the brief.
-- Check-in card when last week's preview exists: pre-selected stick/diverge recommendation, one-tap confirm.
+## Not yet (full MVP scope, target 20 November)
 
 ### Chips (D5.1–D5.7)
 - Weekly chip alert card + chip status strip with expiry countdown.
@@ -67,6 +55,7 @@
 ### "News since this brief" banner (D17.9)
 - Daily job flags players named in stored briefs (sell candidate, picks, captain options) when injury/suspension/availability changes.
 - Affected cards show the banner; user counters to re-check.
+- Requires daily-refresh completion (D11.7) below.
 
 ### Receipts, scorecard, and journal (E5)
 - Transfer receipt pipeline: label (Followed / Your own move / Ignored, rolled / Ignored, transferred), inferred intent (points / funding / injury cover), linked funding moves.
@@ -86,7 +75,15 @@
 - News flagging for stored briefs (feeds the banner above).
 - Receipt and counter-record settlement after played gameweeks.
 
-### Design and accessibility (weeks 9–15 Nov)
+### Stick-or-diverge check-in (D3.3)
+- Check-in card when last week's preview exists: pre-selected stick/diverge recommendation, one-tap confirm.
+
+---
+
+## Post-20 Nov (UI pass, deferred by owner)
+
+### Design and accessibility
+- Full UI and visual design pass across all screens.
 - Light mode.
 - Full motion design with reduced-motion fallbacks.
 - Accessibility pass (44px targets verified, screen-reader labels, contrast audit).

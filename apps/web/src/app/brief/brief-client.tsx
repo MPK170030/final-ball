@@ -2,19 +2,30 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import NumberFlow from '@number-flow/react'
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
+import dynamic from 'next/dynamic'
 import { AccountMenu } from '@/components/brief/account-menu'
 import { BriefBanner } from '@/components/brief/brief-banner'
 import { TransferCard } from '@/components/brief/transfer-card'
 import { CaptainCard } from '@/components/brief/captain-card'
-import { DetailSheet } from '@/components/brief/detail-sheet'
+import { PreviewCard } from '@/components/brief/preview-card'
+import { LineupCard } from '@/components/brief/lineup-card'
+const Countdown = dynamic(
+  () => import('./countdown').then(m => ({ default: m.Countdown })),
+  { ssr: false },
+)
+
+const DetailSheet = dynamic(
+  () => import('@/components/brief/detail-sheet').then(m => ({ default: m.DetailSheet })),
+  { ssr: false },
+)
 import type {
   BriefData,
   BriefCard,
   TransferCardPayload,
   TransferCardPayloadTransfer,
   CaptainCardPayload,
+  PreviewCardPayload,
+  LineupCardPayload,
   DetailState,
   CounterPhase,
 } from '@/components/brief/types'
@@ -26,7 +37,6 @@ type GenState =
   | { phase: 'idle' }
   | { phase: 'generating'; steps: string[] }
   | { phase: 'error'; message: string }
-  | { phase: 'cap_reached' }
   | { phase: 'fpl_updating' }
 
 interface BriefClientProps {
@@ -42,59 +52,6 @@ interface BriefClientProps {
   displayName: string
   initial: string
   teamName: string
-}
-
-// ── Countdown ────────────────────────────────────────────────────────────────
-
-function useCountdown(deadlineMs: number | null) {
-  const [remaining, setRemaining] = useState(() =>
-    deadlineMs ? Math.max(0, deadlineMs - Date.now()) : null,
-  )
-
-  useEffect(() => {
-    if (!deadlineMs) return
-    const tick = () => setRemaining(Math.max(0, deadlineMs - Date.now()))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [deadlineMs])
-
-  if (remaining === null) return null
-
-  const totalSeconds = Math.floor(remaining / 1000)
-  const days = Math.floor(totalSeconds / 86400)
-  const hours = Math.floor((totalSeconds % 86400) / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  return { days, hours, minutes, seconds, totalMs: remaining }
-}
-
-function Countdown({ deadlineMs }: { deadlineMs: number | null }) {
-  const time = useCountdown(deadlineMs)
-  if (!time) return null
-
-  return (
-    // aria-live="off": updating every second would be too noisy for screen readers
-    <div aria-live="off" className="flex items-baseline gap-0.5 font-mono text-number text-muted-foreground tabular-nums">
-      {time.days > 0 && (
-        <>
-          <NumberFlow value={time.days} />
-          <span>d </span>
-        </>
-      )}
-      <NumberFlow value={time.hours} format={{ minimumIntegerDigits: time.days > 0 ? 2 : 1 }} />
-      <span>h </span>
-      <NumberFlow value={time.minutes} format={{ minimumIntegerDigits: 2 }} />
-      <span>m </span>
-      {time.days === 0 && (
-        <>
-          <NumberFlow value={time.seconds} format={{ minimumIntegerDigits: 2 }} />
-          <span>s</span>
-        </>
-      )}
-    </div>
-  )
 }
 
 // ── Risk tag key ──────────────────────────────────────────────────────────────
@@ -150,7 +107,6 @@ export function BriefClient({
   const [counterStates, setCounterStates] = useState<Record<string, CounterPhase>>({})
   const [countersUsedThisSession, setCountersUsedThisSession] = useState(0)
   const [genState, setGenState] = useState<GenState>({ phase: 'idle' })
-  const reducedMotion = useReducedMotion()
   // Tracks the button that triggered the detail panel so focus returns on close
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null)
 
@@ -187,9 +143,6 @@ export function BriefClient({
           } else if (data.status === 'no_change') {
             setGenState({ phase: 'idle' })
             return
-          } else if (data.status === 'cap_reached') {
-            setGenState({ phase: 'cap_reached' })
-            return
           } else if (data.status === 'fpl_updating') {
             setGenState({ phase: 'fpl_updating' })
             return
@@ -222,6 +175,14 @@ export function BriefClient({
       setGenState({ phase: 'idle' })
     }
   }, [initialBrief?.id])
+
+  // Auto-generate on first visit when no brief exists yet
+  useEffect(() => {
+    if (!initialBrief && !isDeadlinePassed && !isFplUpdating) {
+      triggerGenerate()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const activeCards = brief?.cards ?? []
 
@@ -396,6 +357,8 @@ export function BriefClient({
 
   const transferCards = activeCards.filter((c: BriefCard) => c.type === 'transfer')
   const captainCard = activeCards.find((c: BriefCard) => c.type === 'captain')
+  const lineupCards = activeCards.filter((c: BriefCard) => c.type === 'lineup')
+  const previewCards = activeCards.filter((c: BriefCard) => c.type === 'preview')
 
   const sharedDetailProps = {
     detail,
@@ -544,11 +507,6 @@ export function BriefClient({
                         </button>
                       </>
                     )}
-                    {genState.phase === 'cap_reached' && (
-                      <span className="text-[13px] text-muted-foreground">
-                        Brief limit reached for GW {gameweek}.
-                      </span>
-                    )}
                   </div>
                 )}
 
@@ -558,18 +516,16 @@ export function BriefClient({
                 {/* Content */}
                 <h2 className="sr-only">Weekly suggestions</h2>
                 {brief ? (
-                  <AnimatePresence>
-                    <div className="space-y-4">
+                  <div className="space-y-4">
                       {transferCards.map((card, i) => {
                         const payload = card.payload as TransferCardPayload
                         const cardPhase = counterStates[card.id] ?? { phase: 'idle' }
                         const cardCounterDisabled = !canCounter || cardPhase.phase === 'checking'
                         return (
-                          <motion.div
+                          <div
                             key={card.id}
-                            initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: i * 0.06 }}
+                            className={i > 0 ? 'brief-card-anim' : undefined}
+                            style={i > 0 ? { animationDelay: `${i * 60}ms` } : undefined}
                           >
                             <TransferCard
                               payload={payload}
@@ -585,15 +541,13 @@ export function BriefClient({
                               weakspotCounterDisabledReason={counterDisabledReason}
                               isSelected={detail?.cardId === card.id}
                             />
-                          </motion.div>
+                          </div>
                         )
                       })}
                       {captainCard && (
-                        <motion.div
-                          key={captainCard.id}
-                          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3, delay: transferCards.length * 0.06 }}
+                        <div
+                          className="brief-card-anim"
+                          style={{ animationDelay: `${transferCards.length * 60}ms` }}
                         >
                           {(() => {
                             const cardPhase = counterStates[captainCard.id] ?? { phase: 'idle' }
@@ -609,8 +563,28 @@ export function BriefClient({
                               />
                             )
                           })()}
-                        </motion.div>
+                        </div>
                       )}
+                      {/* Lineup cards */}
+                      {lineupCards.map((card, i) => (
+                        <div
+                          key={card.id}
+                          className="brief-card-anim"
+                          style={{ animationDelay: `${(transferCards.length + 1 + i) * 60}ms` }}
+                        >
+                          <LineupCard payload={card.payload as LineupCardPayload} />
+                        </div>
+                      ))}
+                      {/* Preview cards */}
+                      {previewCards.map((card, i) => (
+                        <div
+                          key={card.id}
+                          className="brief-card-anim"
+                          style={{ animationDelay: `${(transferCards.length + 1 + lineupCards.length + i) * 60}ms` }}
+                        >
+                          <PreviewCard payload={card.payload as PreviewCardPayload} />
+                        </div>
+                      ))}
                       {/* How the agent decided */}
                       {(captainCard ?? transferCards[0]) && (() => {
                         const traceCardId = (captainCard ?? transferCards[0])!.id
@@ -621,10 +595,9 @@ export function BriefClient({
                           : `${stepCount} steps`
                         const desktopSubtitle = `${mobileSubtitle} · the full trace for this brief`
                         return (
-                          <motion.div
-                            initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: (transferCards.length + 1) * 0.06 }}
+                          <div
+                            className="brief-card-anim"
+                            style={{ animationDelay: `${(transferCards.length + 1 + lineupCards.length + previewCards.length) * 60}ms` }}
                           >
                             <button
                               type="button"
@@ -649,11 +622,10 @@ export function BriefClient({
                                 →
                               </span>
                             </button>
-                          </motion.div>
+                          </div>
                         )
                       })()}
                     </div>
-                  </AnimatePresence>
                 ) : (
                   <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
                     {isEarlyPlanning ? (
@@ -704,21 +676,48 @@ export function BriefClient({
                             </button>
                           </>
                         )}
-                        {genState.phase === 'cap_reached' && (
-                          <>
-                            <p className="text-body-strong text-foreground">Brief limit reached for GW {gameweek}</p>
-                            <p className="text-small mt-1 text-muted-foreground">
-                              You&apos;ve generated the maximum number of briefs for this gameweek.
-                            </p>
-                          </>
-                        )}
                       </>
                     ) : (
                       <>
-                        <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
-                        <p className="text-small mt-1 text-muted-foreground">
-                          Your brief will arrive on schedule before the deadline.
-                        </p>
+                        {genState.phase === 'idle' && (
+                          <>
+                            <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
+                            <p className="text-small mt-1 text-muted-foreground">
+                              Your brief will arrive on schedule before the deadline.
+                            </p>
+                          </>
+                        )}
+                        {genState.phase === 'generating' && (
+                          <>
+                            <p className="text-body-strong text-foreground">Generating your brief…</p>
+                            {genState.steps.length > 0 && (
+                              <ul className="mt-2 space-y-0.5">
+                                {genState.steps.map((s, i) => (
+                                  <li key={i} className="text-small text-muted-foreground">{s}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </>
+                        )}
+                        {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
+                          <>
+                            <p className="text-body-strong text-foreground">
+                              {genState.phase === 'fpl_updating' ? 'FPL is updating' : 'Something went wrong'}
+                            </p>
+                            <p className="text-small mt-1 text-muted-foreground">
+                              {genState.phase === 'fpl_updating'
+                                ? 'Try again in a few minutes.'
+                                : genState.message}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={triggerGenerate}
+                              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                            >
+                              Try again
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>

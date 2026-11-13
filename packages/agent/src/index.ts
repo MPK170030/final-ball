@@ -28,6 +28,7 @@ export type { RankedPlan, RankedTransferCard, RankedAlternative, WhySection } fr
 export type { RiskTag } from './analysis/candidates.js'
 export { buildCardRows } from './buildCards.js'
 export type { EnrichMeta, CardRow } from './buildCards.js'
+export type { LineupResult, LineupSlot } from './analysis/lineup.js'
 export { MemoryCacheAdapter } from './fpl/cache.js'
 export type { CacheAdapter } from './fpl/cache.js'
 export {
