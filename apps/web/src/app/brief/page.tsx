@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { FplClient, MemoryCacheAdapter, getActiveGameweek, getSquadGameweek, isDeadlinePassed } from '@finalball/agent'
 import type { TraceStep } from '@finalball/agent'
 import { BriefClient } from './brief-client'
-import type { BriefData, BriefCard } from '@/components/brief/types'
+import type { BriefData, BriefCard, ReceiptData, ReceiptRowData } from '@/components/brief/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,8 +95,8 @@ export default async function BriefPage() {
     fplData.deadlineMs !== null &&
     fplData.deadlineMs - Date.now() > 8 * 24 * 60 * 60 * 1000
 
-  // Then load the latest brief + counter usage for this gameweek in parallel
-  const [latestBriefRes, counterUsageRes] = await Promise.all([
+  // Then load the latest brief + counter usage + recent decisions in parallel
+  const [latestBriefRes, counterUsageRes, decisionsRes] = await Promise.all([
     supabase
       .from('briefs')
       .select('id, gameweek, version, status, trace, generated_at, change_summary')
@@ -112,10 +112,76 @@ export default async function BriefPage() {
       .eq('user_id', user.id)
       .eq('gameweek', gameweek)
       .maybeSingle(),
+    // Last 5 GWs of decisions
+    supabase
+      .from('decisions')
+      .select('id, gameweek, label, risk_tag, actual_move')
+      .eq('user_id', user.id)
+      .order('gameweek', { ascending: false })
+      .limit(20),
   ])
 
   const briefRow = latestBriefRes.data
   const countersThisGw = counterUsageRes.data?.count ?? 0
+
+  // Build receipts data from the last 5 GWs of decisions
+  const rawDecisions = decisionsRes.data ?? []
+  const decisionIds = rawDecisions.map((d) => d.id)
+
+  let intentsMap = new Map<string, string>()
+  let receiptsMap = new Map<string, {
+    window_start_gw: number; window_end_gw: number; player_in_pts: number | null
+    player_out_pts: number | null; delta_pts: number | null; status: string
+  }>()
+
+  if (decisionIds.length > 0) {
+    const [intentsRes, receiptsRes] = await Promise.all([
+      supabase.from('intents').select('decision_id, inferred').in('decision_id', decisionIds),
+      supabase.from('receipts')
+        .select('decision_id, window_start_gw, window_end_gw, player_in_pts, player_out_pts, delta_pts, status')
+        .in('decision_id', decisionIds),
+    ])
+    for (const r of intentsRes.data ?? []) intentsMap.set(r.decision_id, r.inferred)
+    for (const r of receiptsRes.data ?? []) receiptsMap.set(r.decision_id, r)
+  }
+
+  const GW_WINDOW = 5
+  const minGw = gameweek - GW_WINDOW
+  const receiptRows: ReceiptRowData[] = rawDecisions
+    .filter((d) => d.gameweek > minGw)
+    .map((d) => {
+      const move = d.actual_move as {
+        element_in?: number; element_in_name?: string | null
+        element_out?: number; element_out_name?: string | null
+      } | null
+      const receipt = receiptsMap.get(d.id) ?? null
+      return {
+        decisionId: d.id,
+        gameweek: d.gameweek,
+        label: d.label as ReceiptRowData['label'],
+        riskTag: (d.risk_tag as ReceiptRowData['riskTag']) ?? null,
+        intent: ((intentsMap.get(d.id) ?? 'points') as ReceiptRowData['intent']),
+        actualMove: move
+          ? {
+              element_in: move.element_in ?? 0,
+              element_in_name: move.element_in_name ?? null,
+              element_out: move.element_out ?? 0,
+              element_out_name: move.element_out_name ?? null,
+            }
+          : null,
+        receipt: receipt
+          ? {
+              windowStartGw: receipt.window_start_gw,
+              windowEndGw: receipt.window_end_gw,
+              playerInPts: receipt.player_in_pts,
+              playerOutPts: receipt.player_out_pts,
+              deltaPts: receipt.delta_pts,
+              status: receipt.status as 'pending' | 'settled',
+            }
+          : null,
+      }
+    })
+  const receiptData: ReceiptData = { rows: receiptRows }
 
   // Load cards if we have a brief
   let briefData: BriefData | null = null
@@ -151,6 +217,7 @@ export default async function BriefPage() {
       displayName={displayName}
       initial={initial}
       teamName={teamName}
+      receiptData={receiptData}
     />
   )
 }

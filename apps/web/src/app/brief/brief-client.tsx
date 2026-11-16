@@ -10,6 +10,7 @@ import { CaptainCard } from '@/components/brief/captain-card'
 import { ChipCard } from '@/components/brief/chip-card'
 import { PreviewCard } from '@/components/brief/preview-card'
 import { LineupCard } from '@/components/brief/lineup-card'
+import { ReceiptsSection } from '@/components/brief/receipts-section'
 const Countdown = dynamic(
   () => import('./countdown').then(m => ({ default: m.Countdown })),
   { ssr: false },
@@ -30,6 +31,7 @@ import type {
   LineupCardPayload,
   DetailState,
   CounterPhase,
+  ReceiptData,
 } from '@/components/brief/types'
 import { cn } from '@/lib/utils'
 
@@ -55,6 +57,7 @@ interface BriefClientProps {
   displayName: string
   initial: string
   teamName: string
+  receiptData: ReceiptData
 }
 
 // ── Risk tag key ──────────────────────────────────────────────────────────────
@@ -102,6 +105,7 @@ export function BriefClient({
   displayName,
   initial,
   teamName,
+  receiptData,
 }: BriefClientProps) {
   const brief = initialBrief
   const router = useRouter()
@@ -650,6 +654,10 @@ export function BriefClient({
                           </div>
                         )
                       })()}
+                      {/* Receipts section */}
+                      <div className="pt-4">
+                        <ReceiptsSection data={receiptData} />
+                      </div>
                     </div>
                 ) : (
                   <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">

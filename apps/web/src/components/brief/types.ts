@@ -110,6 +110,34 @@ export interface BriefCard {
   payload: TransferCardPayload | CaptainCardPayload | ChipCardPayload | PreviewCardPayload | LineupCardPayload
 }
 
+// ── Receipt types (E5) ───────────────────────────────────────────────────────
+
+export interface ReceiptRowData {
+  decisionId: string
+  gameweek: number
+  label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+  riskTag: 'safe' | 'balanced' | 'bold' | null
+  intent: 'points' | 'funding' | 'injury_cover'
+  actualMove: {
+    element_in: number
+    element_in_name: string | null
+    element_out: number
+    element_out_name: string | null
+  } | null
+  receipt: {
+    windowStartGw: number
+    windowEndGw: number
+    playerInPts: number | null
+    playerOutPts: number | null
+    deltaPts: number | null
+    status: 'pending' | 'settled'
+  } | null
+}
+
+export interface ReceiptData {
+  rows: ReceiptRowData[]
+}
+
 export interface BriefData {
   id: string
   gameweek: number

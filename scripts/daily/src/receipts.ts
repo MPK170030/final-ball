@@ -63,10 +63,14 @@ export async function detectDecisions(
 
   const { windowStartGw, windowEndGw } = computeReceiptWindow(previousGw)
 
+  // Fetch bootstrap once — shared across all users for name lookup + intent inference
+  const bootstrap = await fpl.getBootstrap()
+  const playerById = new Map(bootstrap.elements.map((p) => [p.id, p]))
+
   for (const user of users) {
     if (!user.team_id) continue
     try {
-      await processUserDecisions(db, fpl, user.id, user.team_id, previousGw, windowStartGw, windowEndGw)
+      await processUserDecisions(db, fpl, playerById, user.id, user.team_id, previousGw, windowStartGw, windowEndGw)
     } catch (err) {
       console.error(`[receipts] detectDecisions: user ${user.id} failed:`, err)
     }
@@ -76,6 +80,7 @@ export async function detectDecisions(
 async function processUserDecisions(
   db: SupabaseClient,
   fpl: FplClient,
+  playerById: Map<number, { id: number; web_name: string; news: string; status: string }>,
   userId: string,
   teamId: number,
   gw: number,
@@ -185,24 +190,21 @@ async function processUserDecisions(
 
   // Write each detection to decisions + intents + receipts
   for (const det of detections) {
-    // Infer intent from the sold player's current availability
-    let inferred: 'points' | 'funding' | 'injury_cover' = 'points'
-    if (det.sellPlayerId) {
-      try {
-        const bootstrap = await fpl.getBootstrap()
-        const player = bootstrap.elements.find((p) => p.id === det.sellPlayerId)
-        if (player) inferred = inferIntent(player)
-      } catch {
-        // non-fatal; default to 'points'
-      }
-    }
+    // Infer intent from the sold player's availability at detection time
+    const soldPlayer = det.sellPlayerId ? playerById.get(det.sellPlayerId) : undefined
+    const inferred: 'points' | 'funding' | 'injury_cover' = soldPlayer
+      ? inferIntent(soldPlayer as Parameters<typeof inferIntent>[0])
+      : 'points'
 
+    // Include player names so the UI doesn't need a separate bootstrap fetch
     const actualMove = det.actualTransfer
       ? {
           element_in: det.actualTransfer.element_in,
           element_in_cost: det.actualTransfer.element_in_cost,
+          element_in_name: playerById.get(det.actualTransfer.element_in)?.web_name ?? null,
           element_out: det.actualTransfer.element_out,
           element_out_cost: det.actualTransfer.element_out_cost,
+          element_out_name: playerById.get(det.actualTransfer.element_out)?.web_name ?? null,
           event: det.actualTransfer.event,
           time: det.actualTransfer.time,
         }
