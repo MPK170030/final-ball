@@ -9,7 +9,7 @@ export type EnrichMeta = {
 }
 
 export type CardRow = {
-  type: 'transfer' | 'captain' | 'preview' | 'lineup'
+  type: 'transfer' | 'captain' | 'chip' | 'preview' | 'lineup'
   position: number
   payload: unknown
 }
@@ -92,6 +92,14 @@ export function buildCardRows(result: BriefResult, enrich: EnrichMeta): CardRow[
       alternatives: result.captain.alternatives.map(enrichCaptainPick),
     },
   })
+
+  if (result.chipAdvice) {
+    rows.push({
+      type: 'chip',
+      position: pos++,
+      payload: result.chipAdvice,
+    })
+  }
 
   if (result.lineup) {
     rows.push({

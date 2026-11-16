@@ -7,6 +7,7 @@ import { AccountMenu } from '@/components/brief/account-menu'
 import { BriefBanner } from '@/components/brief/brief-banner'
 import { TransferCard } from '@/components/brief/transfer-card'
 import { CaptainCard } from '@/components/brief/captain-card'
+import { ChipCard } from '@/components/brief/chip-card'
 import { PreviewCard } from '@/components/brief/preview-card'
 import { LineupCard } from '@/components/brief/lineup-card'
 const Countdown = dynamic(
@@ -24,6 +25,7 @@ import type {
   TransferCardPayload,
   TransferCardPayloadTransfer,
   CaptainCardPayload,
+  ChipCardPayload,
   PreviewCardPayload,
   LineupCardPayload,
   DetailState,
@@ -36,6 +38,7 @@ const COUNTER_CAP = 10
 type GenState =
   | { phase: 'idle' }
   | { phase: 'generating'; steps: string[] }
+  | { phase: 'no_change' }
   | { phase: 'error'; message: string }
   | { phase: 'fpl_updating' }
 
@@ -141,7 +144,7 @@ export function BriefClient({
             router.refresh()
             return
           } else if (data.status === 'no_change') {
-            setGenState({ phase: 'idle' })
+            setGenState({ phase: 'no_change' })
             return
           } else if (data.status === 'fpl_updating') {
             setGenState({ phase: 'fpl_updating' })
@@ -357,6 +360,7 @@ export function BriefClient({
 
   const transferCards = activeCards.filter((c: BriefCard) => c.type === 'transfer')
   const captainCard = activeCards.find((c: BriefCard) => c.type === 'captain')
+  const chipCard = activeCards.find((c: BriefCard) => c.type === 'chip')
   const lineupCards = activeCards.filter((c: BriefCard) => c.type === 'lineup')
   const previewCards = activeCards.filter((c: BriefCard) => c.type === 'preview')
 
@@ -491,6 +495,18 @@ export function BriefClient({
                     {genState.phase === 'generating' && (
                       <span className="text-[13px] text-muted-foreground">Refreshing your brief…</span>
                     )}
+                    {genState.phase === 'no_change' && (
+                      <>
+                        <span className="text-[13px] text-muted-foreground">Brief is up to date — nothing changed since last generation.</span>
+                        <button
+                          type="button"
+                          onClick={triggerGenerate}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                        >
+                          Refresh brief
+                        </button>
+                      </>
+                    )}
                     {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
                       <>
                         <span className="text-[13px] text-muted-foreground">
@@ -565,12 +581,21 @@ export function BriefClient({
                           })()}
                         </div>
                       )}
+                      {/* Chip card */}
+                      {chipCard && (
+                        <div
+                          className="brief-card-anim"
+                          style={{ animationDelay: `${(transferCards.length + 1) * 60}ms` }}
+                        >
+                          <ChipCard payload={chipCard.payload as ChipCardPayload} />
+                        </div>
+                      )}
                       {/* Lineup cards */}
                       {lineupCards.map((card, i) => (
                         <div
                           key={card.id}
                           className="brief-card-anim"
-                          style={{ animationDelay: `${(transferCards.length + 1 + i) * 60}ms` }}
+                          style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + i) * 60}ms` }}
                         >
                           <LineupCard payload={card.payload as LineupCardPayload} />
                         </div>
@@ -580,7 +605,7 @@ export function BriefClient({
                         <div
                           key={card.id}
                           className="brief-card-anim"
-                          style={{ animationDelay: `${(transferCards.length + 1 + lineupCards.length + i) * 60}ms` }}
+                          style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + lineupCards.length + i) * 60}ms` }}
                         >
                           <PreviewCard payload={card.payload as PreviewCardPayload} />
                         </div>
@@ -597,7 +622,7 @@ export function BriefClient({
                         return (
                           <div
                             className="brief-card-anim"
-                            style={{ animationDelay: `${(transferCards.length + 1 + lineupCards.length + previewCards.length) * 60}ms` }}
+                            style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + lineupCards.length + previewCards.length) * 60}ms` }}
                           >
                             <button
                               type="button"

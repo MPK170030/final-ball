@@ -99,6 +99,7 @@ function makeCtx(): AgentContext {
     freeTransfers: 1,
     squadPlayers,
     squadByClub: new Map(squadPlayers.map(p => [p.team, 1])),
+    usedChips: [],
   }
 }
 
@@ -269,20 +270,26 @@ describe('generateBrief', () => {
 
   it('captain named on the bench falls back to deterministic brief', async () => {
     // BenchMid (id=13) is at position 13 — bench, not starting XI
-    mockCreate.mockResolvedValueOnce(dataToolResponse('get_player', { name: 'BenchMid' }))
-    mockCreate.mockResolvedValueOnce(submitBriefResponse({
+    // AGT-02 guard retries once before falling back; needs 3 mock responses:
+    // 1) data tool, 2) submit with bench captain (guard rejects, asks to retry),
+    // 3) submit again with bench captain (guard bypassed, resolveSubmission returns null, fallback)
+    const benchSubmit = submitBriefResponse({
       recommendation: 'save',
       saveReason: 'No upgrade available.',
       captain: { name: 'BenchMid', reason: 'High ep_next.', why: { form: 'Good.', fixture: 'Easy.', risks: 'None identified.' } },
       vc:      { name: 'Fwd1',     reason: 'Second choice.', why: { form: 'Hot.',  fixture: 'vs weak.', risks: 'None identified.' } },
       captainAlternatives: [],
-    }))
+    })
+    mockCreate.mockResolvedValueOnce(dataToolResponse('get_player', { name: 'BenchMid' }))
+    mockCreate.mockResolvedValueOnce(benchSubmit)
+    mockCreate.mockResolvedValueOnce(benchSubmit)
 
     const result = await generateBrief(123)
 
     // Fallback ran — BenchMid must not be captain
     expect(result).toBeDefined()
     expect(result.captain.captain.player.web_name).not.toBe('BenchMid')
+    expect(mockCreate).toHaveBeenCalledTimes(3)
   })
 
   // ── Error handling ─────────────────────────────────────────────────────────────

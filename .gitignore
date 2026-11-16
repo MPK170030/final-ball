@@ -40,3 +40,7 @@ pnpm-debug.log*
 docs/*.html
 final-ball-logo/
 apps/web/src/lib/supabase/*.zip
+
+# Eval outputs (snapshots and results contain live FPL data and API costs)
+evals/results/
+evals/snapshots/

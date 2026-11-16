@@ -1,6 +1,7 @@
 {
   "name": "final-ball",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@11.5.2",
   "engines": {
     "node": ">=20.0.0"
@@ -13,7 +14,10 @@
     "format:check": "prettier --check .",
     "type-check": "pnpm -r exec tsc --noEmit",
     "generate:tokens": "tsx scripts/build-tokens.ts",
-    "agent:run": "tsx --env-file=apps/web/.env.local packages/agent/src/cli.ts"
+    "agent:run": "tsx --env-file=apps/web/.env.local packages/agent/src/cli.ts",
+    "eval": "tsx --env-file=apps/web/.env.local evals/run.ts",
+    "eval:score": "tsx --env-file=apps/web/.env.local evals/score.ts",
+    "eval:multi": "tsx --env-file=apps/web/.env.local evals/run-multi.ts"
   },
   "devDependencies": {
     "eslint-config-prettier": "^9.1.0",

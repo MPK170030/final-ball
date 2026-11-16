@@ -14,6 +14,8 @@ import { assignCaptainTags } from './generateCaptain.js'
 import type { CaptainResult, CaptainPick } from './generateCaptain.js'
 import { computeLineup } from './analysis/lineup.js'
 import type { LineupResult } from './analysis/lineup.js'
+import { computeChipAdvice } from './analysis/chips.js'
+import type { ChipAdvice } from './analysis/chips.js'
 import { getUpcomingGwIds } from './analysis/fixtures.js'
 import { numberSteps } from './trace.js'
 import type { TraceStep, TraceEntry } from './trace.js'
@@ -48,6 +50,8 @@ export interface BriefResult {
   nextWeekPreview?: string
   /** Recommended starting XI and bench order from the post-transfer squad (D4.5). */
   lineup?: LineupResult
+  /** Chip availability, timing advice, and BGW/DGW scan (D5.1, D5.3, D5.5, D5.7). */
+  chipAdvice?: ChipAdvice
 }
 
 // ── Input hash and change summary (D10.6) ─────────────────────────────────────
@@ -82,8 +86,10 @@ export function computeInputHash(ctx: AgentContext): string {
     fdrs[player.id] = upcomingGwIds.map(gwId => fdrMap.get(`${player.team}-${gwId}`) ?? null)
   }
 
+  const usedChips = ctx.usedChips.map(c => ({ name: c.name, event: c.event })).sort((a, b) => a.event - b.event)
+
   return createHash('sha256')
-    .update(JSON.stringify({ picks, bank: ctx.bank, freeTransfers: ctx.freeTransfers, news, fdrs }))
+    .update(JSON.stringify({ picks, bank: ctx.bank, freeTransfers: ctx.freeTransfers, news, fdrs, usedChips }))
     .digest('hex')
 }
 
@@ -903,6 +909,12 @@ function resolveSubmission(
       : ctx.squadPlayers
 
   const lineup = postTransferSquad.length === 15 ? computeLineup(postTransferSquad) : undefined
+  const chipAdvice = computeChipAdvice(ctx)
+
+  trace.push({
+    title: 'Chips',
+    text: `${chipAdvice.status.filter(s => !s.used).length} chip(s) available. ${chipAdvice.specialGws.length > 0 ? `Special GWs: ${chipAdvice.specialGws.map(sg => `GW${sg.gwId}`).join(', ')}.` : 'No BGW/DGW confirmed yet.'}`,
+  })
 
   return {
     save: submission.recommendation === 'save',
@@ -923,6 +935,7 @@ function resolveSubmission(
     whySellContext: weakspots.whySellContext,
     nextWeekPreview,
     lineup,
+    chipAdvice,
   }
 }
 
@@ -994,6 +1007,12 @@ function buildDeterministicBrief(
       : ctx.squadPlayers
 
   const lineup = postTransferSquad.length === 15 ? computeLineup(postTransferSquad) : undefined
+  const chipAdvice = computeChipAdvice(ctx)
+
+  trace.push({
+    title: 'Chips',
+    text: `${chipAdvice.status.filter(s => !s.used).length} chip(s) available. ${chipAdvice.specialGws.length > 0 ? `Special GWs: ${chipAdvice.specialGws.map(sg => `GW${sg.gwId}`).join(', ')}.` : 'No BGW/DGW confirmed yet.'}`,
+  })
 
   const startingXI =
     transfers.length > 0
@@ -1059,6 +1078,7 @@ function buildDeterministicBrief(
     whySellContext: weakspots.whySellContext,
     nextWeekPreview,
     lineup,
+    chipAdvice,
   }
 }
 
@@ -1119,6 +1139,8 @@ export async function generateBrief(
   let toolCallCount = 0
   let hasInvestigated = false
   let rejectedSkipOnce = false
+  let captainRejectCount = 0
+  const MAX_CAPTAIN_REJECTS = 1
 
   onProgress('Investigating with AI...')
 
@@ -1174,6 +1196,48 @@ export async function generateBrief(
           ],
         })
         continue
+      }
+
+      // AGT-02: pre-validate captain/VC against post-transfer starting XI; retry once before falling back
+      if (!forceConclusion && captainRejectCount < MAX_CAPTAIN_REJECTS) {
+        const submissionTransfers = raw.recommendation === 'transfer' ? (raw.transfers ?? []) : []
+        const squadPlayers = ctx.picks.picks
+          .map(p => ctx.bootstrap.elements.find(e => e.id === p.element))
+          .filter((p): p is Player => !!p)
+        const resolvedTransfers = submissionTransfers.flatMap(t => {
+          const sellPl = findPlayer(t.sellPlayerName, squadPlayers)
+          const buyPl = findPlayer(t.topPickName, ctx.bootstrap.elements)
+          return sellPl && buyPl ? [{ sellId: sellPl.id, buyId: buyPl.id, buyPlayer: buyPl }] : []
+        })
+        const preXI =
+          resolvedTransfers.length > 0
+            ? applyTransfersToStartingXI(resolvedTransfers, ctx)
+            : ctx.picks.picks
+                .filter(p => p.position <= 11)
+                .map(p => ctx.bootstrap.elements.find(e => e.id === p.element))
+                .filter((p): p is Player => !!p)
+        const captainOK = !!findPlayer(raw.captain.name, preXI)
+        const vcOK = !!findPlayer(raw.vc.name, preXI)
+        if (!captainOK || !vcOK) {
+          captainRejectCount++
+          const role = !captainOK ? 'Captain' : 'VC'
+          const badName = !captainOK ? raw.captain.name : raw.vc.name
+          const xiNames = preXI.map(p => p.web_name).join(', ')
+          trace.push({ title: 'Guard', text: `${role} "${badName}" not in starting XI — asking model to retry.` })
+          messages.push({ role: 'assistant', content: response.content })
+          messages.push({
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: submitBlock.id,
+                content: `${role} "${badName}" is not in the post-transfer starting XI. The starting XI contains: ${xiNames}. Please re-submit with a captain and VC from this list.`,
+                is_error: true,
+              },
+            ],
+          })
+          continue
+        }
       }
 
       trace.push({

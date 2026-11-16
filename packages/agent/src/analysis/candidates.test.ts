@@ -54,6 +54,7 @@ function makeCtx(
     bank,
     freeTransfers,
     squadByClub,
+    usedChips: [],
   }
 }
 

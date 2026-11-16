@@ -94,6 +94,7 @@ function makeCtx(opts?: { swapGkId?: number }): AgentContext {
     freeTransfers: 1,
     squadPlayers: allPlayers,
     squadByClub: new Map(allPlayers.map(p => [p.team, 1])),
+    usedChips: [],
   }
 }
 

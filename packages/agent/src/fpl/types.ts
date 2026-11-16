@@ -1,3 +1,12 @@
+export interface BootstrapChip {
+  id: number
+  name: string
+  number: number
+  start_event: number
+  stop_event: number
+  chip_type: 'transfer' | 'team'
+}
+
 export interface Bootstrap {
   events: GameweekEvent[]
   game_settings: GameSettings
@@ -7,6 +16,7 @@ export interface Bootstrap {
   elements: Player[]
   element_stats: ElementStat[]
   element_types: ElementType[]
+  chips: BootstrapChip[]
 }
 
 export interface GameweekEvent {

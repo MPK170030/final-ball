@@ -5,6 +5,9 @@ import type {
   CaptainPick,
   TraceStep,
   RiskTag,
+  ChipStatus,
+  ChipTimingAdvice,
+  SpecialGw,
 } from '@finalball/agent'
 import type { Player } from '@finalball/agent'
 import type { Candidate } from '@finalball/agent'
@@ -91,11 +94,20 @@ export interface LineupCardPayload {
   hasChanges: boolean
 }
 
+export interface ChipCardPayload {
+  status: ChipStatus[]
+  timing: ChipTimingAdvice[]
+  expiryNudge?: string
+  specialGws: SpecialGw[]
+}
+
+export { ChipStatus, ChipTimingAdvice, SpecialGw }
+
 export interface BriefCard {
   id: string
-  type: 'transfer' | 'captain' | 'preview' | 'lineup'
+  type: 'transfer' | 'captain' | 'chip' | 'preview' | 'lineup'
   position: number
-  payload: TransferCardPayload | CaptainCardPayload | PreviewCardPayload | LineupCardPayload
+  payload: TransferCardPayload | CaptainCardPayload | ChipCardPayload | PreviewCardPayload | LineupCardPayload
 }
 
 export interface BriefData {

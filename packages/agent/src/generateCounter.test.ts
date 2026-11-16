@@ -93,6 +93,7 @@ function makeCtx(): AgentContext {
     freeTransfers: 1,
     squadPlayers,
     squadByClub: new Map(squadPlayers.map(p => [p.team, 1])),
+    usedChips: [],
   }
 }
 

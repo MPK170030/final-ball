@@ -1,0 +1,254 @@
+[
+  {
+    "id": "sq01",
+    "category": "single-fact",
+    "text": "Is the recommended sell player currently in the manager's squad?",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].sell.player.id",
+    "expectedRule": "id must be in the set of squad player IDs from picks.picks[].element (snapshot)",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. A fail here means the model named a player it cannot sell."
+  },
+  {
+    "id": "sq02",
+    "category": "single-fact",
+    "text": "Does the recommended buy player exist in the FPL player database?",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].topPick.player.id",
+    "expectedRule": "id must appear in bootstrap.elements[].id (snapshot)",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. A fail means the model fabricated a player name."
+  },
+  {
+    "id": "sq03",
+    "category": "single-fact",
+    "text": "Does the buy player play the same position as the sell player?",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].topPick.player.element_type === brief.transfers[0].sell.player.element_type",
+    "expectedRule": "topPick.player.element_type (from snapshot lookup by id) must equal sell.player.element_type",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. FPL rules require like-for-like position swaps."
+  },
+  {
+    "id": "sq04",
+    "category": "single-fact",
+    "text": "Does the brief name a captain (non-empty player reference)?",
+    "condition": "always",
+    "extract": "brief.captain.captain.player.web_name",
+    "expectedRule": "must be a non-empty string that matches a player in bootstrap.elements",
+    "grading": "exact",
+    "notes": "Basic sanity check: the agent must always name a captain."
+  },
+  {
+    "id": "sq05",
+    "category": "single-fact",
+    "text": "Is the VC a different player from the captain?",
+    "condition": "always",
+    "extract": "brief.captain.vc.player.id !== brief.captain.captain.player.id",
+    "expectedRule": "captain.player.id must differ from vc.player.id",
+    "grading": "exact",
+    "notes": "FPL rules require distinct C and VC."
+  },
+  {
+    "id": "sq06",
+    "category": "single-fact",
+    "text": "Is the buy player available to field (status is not 'u' — unavailable)?",
+    "condition": "save === false",
+    "extract": "bootstrap.elements.find(p => p.id === topPickId).status",
+    "expectedRule": "status from snapshot must not be 'u' (fully unavailable/left league)",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. Status 'i' (injured) is acceptable — agent can judge that. Status 'u' means the player left FPL entirely."
+  },
+  {
+    "id": "sq07",
+    "category": "single-fact",
+    "text": "Is the brief for a valid upcoming (not yet finished) gameweek?",
+    "condition": "always",
+    "extract": "brief.meta.gameweekId",
+    "expectedRule": "id must be in bootstrap.events[].id AND the event's finished field must be false (snapshot)",
+    "grading": "exact",
+    "notes": "Checks the agent didn't get confused about which GW is active."
+  },
+  {
+    "id": "sq08",
+    "category": "single-fact",
+    "text": "When saving the transfer, does the brief include a non-empty save reason?",
+    "condition": "save === true",
+    "extract": "brief.saveReason",
+    "expectedRule": "must be a non-empty string when save === true",
+    "grading": "exact",
+    "notes": "Marked n/a when save=false. The agent should always explain why it's saving."
+  },
+  {
+    "id": "sq09",
+    "category": "single-fact",
+    "text": "Is the number of recommended transfers within the available free transfer allowance?",
+    "condition": "always",
+    "extract": "save ? 0 : brief.transfers.length",
+    "expectedRule": "transfer count must be ≤ brief.meta.freeTransfers",
+    "grading": "exact",
+    "notes": "Using more FTs than available incurs a 4-point penalty each."
+  },
+  {
+    "id": "sq10",
+    "category": "single-fact",
+    "text": "Did the agent use at least 2 tool calls during its reasoning (get_player, get_fixtures, compare, search_candidates, or check_constraints)?",
+    "condition": "always",
+    "extract": "count of brief.trace steps whose title starts with 'Tool:'",
+    "expectedRule": "count must be ≥ 2",
+    "grading": "exact",
+    "notes": "The guard in generateBrief forces ≥1 tool call before submit; we require ≥2 to verify real investigation."
+  },
+
+  {
+    "id": "mq01",
+    "category": "multi-step",
+    "text": "Is the transfer affordable? (sell price + bank ≥ buy cost, all in tenths of £m)",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].sellingPrice + brief.meta.bank vs topPick.player.now_cost (snapshot lookup by id)",
+    "expectedRule": "sellingPrice + bank (both from brief.meta) must be ≥ topPick.player.now_cost from snapshot. All values in tenths of £m (FPL wire format).",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. A fail means the agent recommended a transfer it cannot afford."
+  },
+  {
+    "id": "mq02",
+    "category": "multi-step",
+    "text": "Does the buy player project strictly more 3-GW points than the sell player?",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].topPick.score.total > brief.transfers[0].sell.score.total",
+    "expectedRule": "topPick.score.total must be > sell.score.total (computed by scorePlayer() from snapshot + fixtures)",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. A transfer that doesn't improve points is not justified."
+  },
+  {
+    "id": "mq03",
+    "category": "multi-step",
+    "text": "Is the club limit respected after the transfer? (at most 3 players from the buy player's club in the post-transfer squad)",
+    "condition": "save === false",
+    "extract": "count of post-transfer squad players whose team equals topPick.player.team (snapshot)",
+    "expectedRule": "count of squad players (after replacing sell with buy) from buy player's team must be ≤ 3",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. FPL hard rule — a fail disqualifies the transfer."
+  },
+  {
+    "id": "mq04",
+    "category": "multi-step",
+    "text": "Is the recommended captain in the post-transfer starting XI (positions 1–11)?",
+    "condition": "always",
+    "extract": "brief.captain.captain.player.id membership in post-transfer positions 1–11",
+    "expectedRule": "captain.player.id must appear in {element IDs of picks.picks where position ≤ 11, after applying any transfer}",
+    "grading": "exact",
+    "notes": "FPL rules: captaining a bench player scores zero bonus. The agent's system prompt enforces this, but we verify it."
+  },
+  {
+    "id": "mq05",
+    "category": "multi-step",
+    "text": "Is the agent's best single-transfer improvement within 0.5 pts of the highest-gain legal single transfer available?",
+    "condition": "save === false",
+    "extract": "max over brief.transfers of (scorePlayer(buy) − scorePlayer(sell)), recomputed from snapshot",
+    "expectedRule": "bestLegal − agentBest ≤ 0.5, where bestLegal = max improvement across all 15×N legal (position, budget, club-limit) sell→buy pairs",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. Replaces the old bottom-3 sell check and oq02. Tolerates 0.5 pts to allow for defensible judgment calls."
+  },
+  {
+    "id": "mq06",
+    "category": "multi-step",
+    "text": "Are all alternative buy suggestions distinct players (no duplicates, and none equal to the top pick)?",
+    "condition": "save === false && alternatives.length > 0",
+    "extract": "[topPick.player.id, ...alternatives[].candidate.player.id]",
+    "expectedRule": "all player IDs in the list must be unique",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true or no alternatives. Duplicates indicate a model reasoning error."
+  },
+  {
+    "id": "mq07",
+    "category": "multi-step",
+    "text": "Do all alternative buy suggestions match the sell player's position?",
+    "condition": "save === false && alternatives.length > 0",
+    "extract": "alternatives[].candidate.player.element_type (snapshot lookup)",
+    "expectedRule": "every alternative's element_type (from snapshot) must equal sell.player.element_type",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true or no alternatives. A wrong-position alternative is an FPL rule violation."
+  },
+  {
+    "id": "mq08",
+    "category": "multi-step",
+    "text": "Is the VC in the post-transfer starting XI (positions 1–11)?",
+    "condition": "always",
+    "extract": "brief.captain.vc.player.id membership in post-transfer positions 1–11",
+    "expectedRule": "vc.player.id must appear in {element IDs of picks.picks where position ≤ 11, after applying any transfer}",
+    "grading": "exact",
+    "notes": "Same logic as mq04 for the vice-captain."
+  },
+  {
+    "id": "mq09",
+    "category": "multi-step",
+    "text": "Is the buy player genuinely not already in the squad before the transfer?",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].topPick.player.id",
+    "expectedRule": "id must NOT be in {picks.picks[].element from snapshot}",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. Buying a player you already own is impossible in FPL."
+  },
+  {
+    "id": "mq10",
+    "category": "multi-step",
+    "text": "When a transfer is recommended, does the buy player beat the sell player's projected score by at least the SAVE_THRESHOLD_PTS (1.0 pts)?",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].topPick.score.total - brief.transfers[0].sell.score.total",
+    "expectedRule": "difference must be ≥ 1.0 (SAVE_THRESHOLD_PTS from packages/agent/src/analysis/rank.ts). Computed using scorePlayer() on snapshot data.",
+    "grading": "exact",
+    "notes": "Marked n/a when save=true. If the agent transfers despite improvement < threshold, it's ignoring its own save rule."
+  },
+
+  {
+    "id": "oq01",
+    "category": "open-ended",
+    "text": "Is the recommended captain any of the top-3 outfield starters by ep_next (or form×0.9 fallback)?",
+    "condition": "always",
+    "extract": "brief.captain.captain.player.id",
+    "expectedRule": "captain's id must be one of the top-3 non-GK players in the post-transfer starting XI, ranked descending by ep_next (parseFloat) or form×0.9 when ep_next is null. Acceptable set computed from snapshot.",
+    "grading": "set",
+    "notes": "ep_next is the same proxy the agent uses for captaincy. Rank 1–3 are all defensible choices."
+  },
+  {
+    "id": "oq02",
+    "category": "open-ended",
+    "text": "[Deprecated — merged into mq05] Is the sell candidate one of the bottom-3 squad players by 3-GW projected score?",
+    "condition": "never",
+    "extract": "n/a",
+    "expectedRule": "always n/a — this check was replaced by mq05's best-legal-transfer check",
+    "grading": "n/a",
+    "notes": "Retired. The bottom-3 sell heuristic was too narrow; mq05 now checks the broader 'within 0.5 pts of best legal transfer' criterion."
+  },
+  {
+    "id": "oq03",
+    "category": "open-ended",
+    "text": "Is the top pick buy player among the top-10 available candidates at that position and price?",
+    "condition": "save === false",
+    "extract": "brief.transfers[0].topPick.player.id",
+    "expectedRule": "id must appear in the top-10 results of search_candidates logic applied to snapshot: filter bootstrap.elements by element_type === sell.element_type AND now_cost ≤ (sellingPrice + bank) AND status ≠ 'u'/'n' AND id ∉ squad, then rank by scorePlayer() total descending.",
+    "grading": "set",
+    "notes": "Marked n/a when save=true. The agent uses search_candidates directly; this verifies it chose from a good pool."
+  },
+  {
+    "id": "oq04",
+    "category": "open-ended",
+    "text": "Does the recommended captain have a fixture with difficulty ≤ 3 (easy or average) in the upcoming gameweek?",
+    "condition": "always",
+    "extract": "FDR of captain's team fixture in the next GW (from snapshot fixtures)",
+    "expectedRule": "at least one upcoming GW fixture for captain.player.team must have team_h_difficulty or team_a_difficulty ≤ 3. Acceptable set = any team with such a fixture.",
+    "grading": "set",
+    "notes": "A captain picked into a FDR 4–5 fixture with other good options available is a soft fail. set-match because captaining into a DGW may justify a tougher single-fixture FDR."
+  },
+  {
+    "id": "oq05",
+    "category": "open-ended",
+    "text": "Is the save-vs-transfer decision consistent with the agent's own SAVE_THRESHOLD rule, given the actual data?",
+    "condition": "always",
+    "extract": "brief.save and best-available improvement from snapshot (max scorePlayer() gain across all valid candidates for sell player's position/budget)",
+    "expectedRule": "if save=true: best available improvement < 1.0 pts (or borderline within ±0.5 pts → needs_review). If save=false: improvement ≥ 1.0 pts. The 'best available improvement' is max(candidateScore) - sellScore, where candidates are computed by search_candidates logic from snapshot.",
+    "grading": "set",
+    "notes": "If the best available improvement is within ±0.5 pts of the threshold, mark needs_review — the borderline is judgement territory. Otherwise exact-matchable."
+  }
+]
