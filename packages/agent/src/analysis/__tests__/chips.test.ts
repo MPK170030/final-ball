@@ -83,7 +83,7 @@ function makeCtx(opts: {
   const usedChips = (opts.usedChipNames ?? []).map((name, i) => ({
     name,
     event: gwId - 2 - i,
-    points: 60,
+    time: '2026-10-01T07:00:00.000Z',
   }))
 
   return {

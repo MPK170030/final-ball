@@ -356,6 +356,96 @@ export interface Database {
         }
         Relationships: []
       }
+      decisions: {
+        Row: {
+          id: string
+          user_id: string
+          gameweek: number
+          card_id: string | null
+          label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+          risk_tag: 'safe' | 'balanced' | 'bold' | null
+          actual_move: unknown | null
+          journal_note: string | null
+          detected_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          gameweek: number
+          card_id?: string | null
+          label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+          risk_tag?: 'safe' | 'balanced' | 'bold' | null
+          actual_move?: unknown | null
+          journal_note?: string | null
+          detected_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          gameweek?: number
+          card_id?: string | null
+          label?: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+          risk_tag?: 'safe' | 'balanced' | 'bold' | null
+          actual_move?: unknown | null
+          journal_note?: string | null
+          detected_at?: string
+        }
+        Relationships: []
+      }
+      intents: {
+        Row: {
+          decision_id: string
+          inferred: 'points' | 'funding' | 'injury_cover'
+          corrected_by_user: 'points' | 'funding' | 'injury_cover' | null
+          linked_decision_id: string | null
+        }
+        Insert: {
+          decision_id: string
+          inferred: 'points' | 'funding' | 'injury_cover'
+          corrected_by_user?: 'points' | 'funding' | 'injury_cover' | null
+          linked_decision_id?: string | null
+        }
+        Update: {
+          decision_id?: string
+          inferred?: 'points' | 'funding' | 'injury_cover'
+          corrected_by_user?: 'points' | 'funding' | 'injury_cover' | null
+          linked_decision_id?: string | null
+        }
+        Relationships: []
+      }
+      receipts: {
+        Row: {
+          decision_id: string
+          window_start_gw: number
+          window_end_gw: number
+          player_in_pts: number | null
+          player_out_pts: number | null
+          delta_pts: number | null
+          status: 'pending' | 'settled'
+          settled_at: string | null
+        }
+        Insert: {
+          decision_id: string
+          window_start_gw: number
+          window_end_gw: number
+          player_in_pts?: number | null
+          player_out_pts?: number | null
+          delta_pts?: number | null
+          status?: 'pending' | 'settled'
+          settled_at?: string | null
+        }
+        Update: {
+          decision_id?: string
+          window_start_gw?: number
+          window_end_gw?: number
+          player_in_pts?: number | null
+          player_out_pts?: number | null
+          delta_pts?: number | null
+          status?: 'pending' | 'settled'
+          settled_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

@@ -3,6 +3,8 @@
  * Runs via GitHub Actions every day to:
  *   1. Cache FPL bootstrap-static (prices, injuries, squad availability)
  *   2. Cache fixtures for the current and next gameweek
+ *   3. Detect decisions for the previous GW (after deadline)
+ *   4. Settle receipts whose 3-GW window has closed
  *
  * This keeps Supabase active during international breaks and feeds
  * the Wednesday team-linking lookup with fresh standings.
@@ -11,8 +13,9 @@
  *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... pnpm --filter @finalball/script-daily start
  */
 
-import { FplClient } from '@finalball/agent'
+import { FplClient, getPreviousGameweek, isGameweekFinished } from '@finalball/agent'
 import { createClient } from '@finalball/db'
+import { detectDecisions, settleReceipts } from './receipts.js'
 
 const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -59,6 +62,26 @@ async function main() {
     const fixtures = await fpl.getFixtures(nextGw.id)
     await upsertCache(`fixtures_gw${nextGw.id}`, fixtures)
     console.log(`[daily] GW${nextGw.id} fixtures cached (${fixtures.length} matches)`)
+  }
+
+  // 3. Detect decisions for the previous GW (runs once after the deadline)
+  const previousGw = getPreviousGameweek(bootstrap)
+  if (previousGw !== null) {
+    console.log(`[daily] Detecting decisions for GW${previousGw}…`)
+    await detectDecisions(db, fpl, previousGw)
+    console.log(`[daily] Decision detection done.`)
+  }
+
+  // 4. Settle receipts whose 3-GW window has closed
+  // Find the highest GW that is fully finished (data_checked)
+  const finishedGw = bootstrap.events
+    .filter((e) => e.finished && e.data_checked)
+    .reduce((max, e) => Math.max(max, e.id), 0)
+
+  if (finishedGw > 0) {
+    console.log(`[daily] Settling receipts through GW${finishedGw}…`)
+    await settleReceipts(db, fpl, finishedGw)
+    console.log(`[daily] Settlement done.`)
   }
 
   console.log('[daily] Done.')
