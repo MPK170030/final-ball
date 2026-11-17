@@ -1,4 +1,4 @@
-# Status — Thu 12 November 2026
+# Status — Mon 16 November 2026
 
 ## Done
 
@@ -43,14 +43,21 @@
 - **Next-week preview card (D3.2, US-3.11):** `computeNextWeekPreview()` derives a one-line fixture-difficulty summary from GW+1 data; `PreviewCard` component renders it below the captain card. Absent during blank or international-break GWs.
 - **Lineup and bench-order recommendation (D4.5, BL-6):** `computeLineup()` tries all 9 valid FPL formations, picks highest expected-points XI from post-transfer squad. `LineupCard` shows starting XI grouped by position, bench in auto-sub order, swap badges, doubtful indicators. DB migration `007` adds `'lineup'` to cards check constraint.
 
+### Post-12 Nov (13–16 Nov)
+- **Auto-generate brief on first visit after onboarding:** brief generation kicks off automatically when a new user lands on `/brief` for the first time, removing the manual "Generate" step.
+- **Performance:** removed `motion/react`, lazy-loaded `Countdown` and `DetailSheet`; −62 kB First Load JS.
+- **Chips (D5.1–D5.7):** `computeChipAdvice()` in `packages/agent/src/analysis/chips.ts`. Builds chip status from bootstrap + entry history (`usedChips` added to `AgentContext`); scans full fixture list for BGW/DGW; generates timing advice for all four chips (TC: best DGW/easiest fixture for top captain; BB: GW where most squad players double; WC: squad-rebuild signal; FH: BGW/DGW targeting); expiry nudge when ≤8 GWs remain. `BootstrapChip` type added to FPL types; `usedChips` included in input hash. `chipAdvice` added to `BriefResult`; trace entry appended in both `resolveSubmission` and `buildDeterministicBrief`. `ChipCard` collapsible UI: chip status strip (available / used / locked), expiry nudge banner, BGW/DGW alert, per-chip timing rows with "Provisional" badge. `'chip'` card type added to `buildCards` and `BriefCard` union. Chips tests in `analysis/__tests__/chips.test.ts`.
+- **`no_change` UI state:** when re-generation detects no input change, brief client now shows "Brief is up to date" with a "Refresh brief" button instead of silently returning to idle.
+- **Captain pre-validation (AGT-02):** `generateBrief` pre-validates submitted captain/VC against the post-transfer starting XI and retries once before falling back to deterministic selection.
+
 ---
 
 ## Not yet (full MVP scope, target 20 November)
 
 ### Chips (D5.1–D5.7)
-- Weekly chip alert card + chip status strip with expiry countdown.
-- Timing advice for all four chips (TC, BB, WC, FH); expiry nudges.
-- Chip advice scans the full fixture list for blanks and doubles ("provisional").
+- ~~Weekly chip alert card + chip status strip with expiry countdown.~~ ✅ Done
+- ~~Timing advice for all four chips (TC, BB, WC, FH); expiry nudges.~~ ✅ Done
+- ~~Chip advice scans the full fixture list for blanks and doubles ("provisional").~~ ✅ Done
 
 ### "News since this brief" banner (D17.9)
 - Daily job flags players named in stored briefs (sell candidate, picks, captain options) when injury/suspension/availability changes.
