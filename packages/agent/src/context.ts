@@ -18,6 +18,8 @@ export interface AgentContext {
   freeTransfers: number
   /** clubId → number of players from that club in the 15-man squad. */
   squadByClub: Map<number, number>
+  /** Chips the manager has already played this season (from entry history). */
+  usedChips: EntryChipHistory[]
 }
 
 /**
@@ -58,7 +60,7 @@ export async function loadContext(teamId: number, client: FplClient): Promise<Ag
     squadByClub.set(player.team, (squadByClub.get(player.team) ?? 0) + 1)
   }
 
-  return { bootstrap, allFixtures, gameweek, picks, squadPlayers, bank, freeTransfers, squadByClub }
+  return { bootstrap, allFixtures, gameweek, picks, squadPlayers, bank, freeTransfers, squadByClub, usedChips: history.chips }
 }
 
 /**

@@ -1,3 +1,12 @@
+export interface BootstrapChip {
+  id: number
+  name: string
+  number: number
+  start_event: number
+  stop_event: number
+  chip_type: 'transfer' | 'team'
+}
+
 export interface Bootstrap {
   events: GameweekEvent[]
   game_settings: GameSettings
@@ -7,6 +16,7 @@ export interface Bootstrap {
   elements: Player[]
   element_stats: ElementStat[]
   element_types: ElementType[]
+  chips: BootstrapChip[]
 }
 
 export interface GameweekEvent {
@@ -319,6 +329,35 @@ export interface EntryChipHistory {
   name: string
   time: string
   event: number
+}
+
+export interface PlayerSummaryHistory {
+  element: number
+  fixture: number
+  opponent_team: number
+  total_points: number
+  was_home: boolean
+  kickoff_time: string
+  team_h_score: number | null
+  team_a_score: number | null
+  selected: number
+  value: number
+  round: number
+  minutes: number
+}
+
+export interface PlayerSummary {
+  history: PlayerSummaryHistory[]
+}
+
+export interface EntryTransfer {
+  element_in: number
+  element_in_cost: number
+  element_out: number
+  element_out_cost: number
+  entry: number
+  event: number
+  time: string
 }
 
 export interface LeagueStandingsResponse {

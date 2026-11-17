@@ -1,4 +1,4 @@
-import type { Bootstrap, Entry, EntryHistory, EntryPicks, Fixture, LeagueStandingsResponse } from './types.js'
+import type { Bootstrap, Entry, EntryHistory, EntryPicks, EntryTransfer, Fixture, LeagueStandingsResponse, PlayerSummary } from './types.js'
 import type { CacheAdapter } from './cache.js'
 
 const FPL_BASE = 'https://fantasy.premierleague.com/api'
@@ -129,6 +129,22 @@ export class FplClient {
     return this.fetchCached(
       `history:${teamId}`,
       `${FPL_BASE}/entry/${teamId}/history/`,
+      TTL_HISTORY,
+    )
+  }
+
+  async getEntryTransfers(teamId: number): Promise<EntryTransfer[]> {
+    return this.fetchCached(
+      `transfers:${teamId}`,
+      `${FPL_BASE}/entry/${teamId}/transfers/`,
+      TTL_HISTORY,
+    )
+  }
+
+  async getPlayerSummary(playerId: number): Promise<PlayerSummary> {
+    return this.fetchCached(
+      `element:${playerId}`,
+      `${FPL_BASE}/element-summary/${playerId}/`,
       TTL_HISTORY,
     )
   }

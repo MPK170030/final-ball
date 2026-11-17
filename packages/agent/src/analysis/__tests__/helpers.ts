@@ -141,6 +141,7 @@ export function makeBootstrap(opts: {
     elements: opts.players ?? [],
     element_stats: [],
     element_types: [],
+    chips: [],
   }
 }
 

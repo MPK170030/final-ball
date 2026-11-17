@@ -5,6 +5,9 @@ import type {
   CaptainPick,
   TraceStep,
   RiskTag,
+  ChipStatus,
+  ChipTimingAdvice,
+  SpecialGw,
 } from '@finalball/agent'
 import type { Player } from '@finalball/agent'
 import type { Candidate } from '@finalball/agent'
@@ -91,11 +94,48 @@ export interface LineupCardPayload {
   hasChanges: boolean
 }
 
+export interface ChipCardPayload {
+  status: ChipStatus[]
+  timing: ChipTimingAdvice[]
+  expiryNudge?: string
+  specialGws: SpecialGw[]
+}
+
+export { ChipStatus, ChipTimingAdvice, SpecialGw }
+
 export interface BriefCard {
   id: string
-  type: 'transfer' | 'captain' | 'preview' | 'lineup'
+  type: 'transfer' | 'captain' | 'chip' | 'preview' | 'lineup'
   position: number
-  payload: TransferCardPayload | CaptainCardPayload | PreviewCardPayload | LineupCardPayload
+  payload: TransferCardPayload | CaptainCardPayload | ChipCardPayload | PreviewCardPayload | LineupCardPayload
+}
+
+// ── Receipt types (E5) ───────────────────────────────────────────────────────
+
+export interface ReceiptRowData {
+  decisionId: string
+  gameweek: number
+  label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+  riskTag: 'safe' | 'balanced' | 'bold' | null
+  intent: 'points' | 'funding' | 'injury_cover'
+  actualMove: {
+    element_in: number
+    element_in_name: string | null
+    element_out: number
+    element_out_name: string | null
+  } | null
+  receipt: {
+    windowStartGw: number
+    windowEndGw: number
+    playerInPts: number | null
+    playerOutPts: number | null
+    deltaPts: number | null
+    status: 'pending' | 'settled'
+  } | null
+}
+
+export interface ReceiptData {
+  rows: ReceiptRowData[]
 }
 
 export interface BriefData {

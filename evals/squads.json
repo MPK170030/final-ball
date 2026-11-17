@@ -1,0 +1,162 @@
+[
+  {
+    "teamId": 895045,
+    "group": "top",
+    "overallRank": 1,
+    "bank": 1.9,
+    "gw10Transfers": 1,
+    "reason": "rank-1 team; baseline for a highly optimised squad"
+  },
+  {
+    "teamId": 5333454,
+    "group": "top",
+    "overallRank": 2,
+    "bank": 0.4,
+    "gw10Transfers": 1,
+    "reason": "rank-2 team; bank £0.4m tests affordability constraints at the top"
+  },
+  {
+    "teamId": 1829025,
+    "group": "top",
+    "overallRank": 3,
+    "bank": 0.7,
+    "gw10Transfers": 2,
+    "reason": "rank-3 team; made 2 free transfers in GW10, so enters GW11 with 1 FT"
+  },
+  {
+    "teamId": 5809,
+    "group": "top",
+    "overallRank": 4,
+    "bank": 1.6,
+    "gw10Transfers": 0,
+    "reason": "rank-4 team; banked their GW10 FT, enters GW11 with 2 FT"
+  },
+  {
+    "teamId": 250692,
+    "group": "top",
+    "overallRank": 5,
+    "bank": 0.2,
+    "gw10Transfers": 1,
+    "reason": "rank-5 team; bank £0.2m — extremely tight budget at the elite level"
+  },
+  {
+    "teamId": 6353594,
+    "group": "mid",
+    "overallRank": 5598775,
+    "bank": 0.4,
+    "gw10Transfers": 0,
+    "reason": "rank ~5.6M; representative mid-table manager, tight bank"
+  },
+  {
+    "teamId": 2561123,
+    "group": "mid",
+    "overallRank": 5598775,
+    "bank": 0.4,
+    "gw10Transfers": 0,
+    "reason": "rank ~5.6M; second mid-table sample with same rank, independent squad"
+  },
+  {
+    "teamId": 3844205,
+    "group": "mid",
+    "overallRank": 5598774,
+    "bank": 2.9,
+    "gw10Transfers": 0,
+    "reason": "rank ~5.6M; mid-table with generous bank — different budget profile"
+  },
+  {
+    "teamId": 4581491,
+    "group": "mid",
+    "overallRank": 5598774,
+    "bank": 0.4,
+    "gw10Transfers": 0,
+    "reason": "rank ~5.6M; bank £0.4m — mid-table manager, typical budget"
+  },
+  {
+    "teamId": 6679182,
+    "group": "mid",
+    "overallRank": 5598774,
+    "bank": 7.9,
+    "gw10Transfers": 0,
+    "reason": "rank ~5.6M; large bank £7.9m — tests agent behaviour with ample transfer budget"
+  },
+  {
+    "teamId": 10178325,
+    "group": "low",
+    "overallRank": 9999598,
+    "bank": 0.0,
+    "gw10Transfers": 0,
+    "reason": "rank ~10M; low-ranked team, £0.0m bank — tests near-zero budget path"
+  },
+  {
+    "teamId": 9006072,
+    "group": "low",
+    "overallRank": 9999598,
+    "bank": 0.0,
+    "gw10Transfers": 0,
+    "reason": "rank ~10M; second low-ranked sample, £0.0m bank"
+  },
+  {
+    "teamId": 10695535,
+    "group": "low",
+    "overallRank": 9999598,
+    "bank": 0.1,
+    "gw10Transfers": 0,
+    "reason": "rank ~10M; low-ranked, £0.1m bank"
+  },
+  {
+    "teamId": 10620256,
+    "group": "low",
+    "overallRank": 9999598,
+    "bank": 0.2,
+    "gw10Transfers": 0,
+    "reason": "rank ~10M; low-ranked"
+  },
+  {
+    "teamId": 10496855,
+    "group": "low",
+    "overallRank": 9999598,
+    "bank": 0.4,
+    "gw10Transfers": 0,
+    "reason": "rank ~10M; low-ranked, slightly more bank than peers"
+  },
+  {
+    "teamId": 799349,
+    "group": "edge",
+    "overallRank": 10,
+    "bank": 0.0,
+    "gw10Transfers": 0,
+    "reason": "edge: bank £0.0m — top-10 team with no spare cash; tests whether agent can find an affordable improvement"
+  },
+  {
+    "teamId": 71002,
+    "group": "edge",
+    "overallRank": 9,
+    "bank": 0.3,
+    "gw10Transfers": 3,
+    "reason": "edge: 3 transfers in GW10 (took hits); unusual aggressive pattern and low bank"
+  },
+  {
+    "teamId": 54837,
+    "group": "edge",
+    "overallRank": 5,
+    "bank": 1.0,
+    "gw10Transfers": 0,
+    "reason": "edge: rank-5 squad that banked its FT; likely well-optimised — targeting save path"
+  },
+  {
+    "teamId": 9714290,
+    "group": "edge",
+    "overallRank": 5598775,
+    "bank": 0.0,
+    "gw10Transfers": 0,
+    "reason": "edge: bank £0.0m at mid-table rank — tests budget constraint for a less-optimised squad"
+  },
+  {
+    "teamId": 3434860,
+    "group": "edge",
+    "overallRank": null,
+    "bank": 5.4,
+    "gw10Transfers": 1,
+    "reason": "edge: reference team (owner); known result (Schade→Wirtz, 9.65 pt improvement) for reproducibility"
+  }
+]

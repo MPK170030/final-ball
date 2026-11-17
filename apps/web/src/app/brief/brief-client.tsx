@@ -7,8 +7,10 @@ import { AccountMenu } from '@/components/brief/account-menu'
 import { BriefBanner } from '@/components/brief/brief-banner'
 import { TransferCard } from '@/components/brief/transfer-card'
 import { CaptainCard } from '@/components/brief/captain-card'
+import { ChipCard } from '@/components/brief/chip-card'
 import { PreviewCard } from '@/components/brief/preview-card'
 import { LineupCard } from '@/components/brief/lineup-card'
+import { ReceiptsSection } from '@/components/brief/receipts-section'
 const Countdown = dynamic(
   () => import('./countdown').then(m => ({ default: m.Countdown })),
   { ssr: false },
@@ -24,10 +26,12 @@ import type {
   TransferCardPayload,
   TransferCardPayloadTransfer,
   CaptainCardPayload,
+  ChipCardPayload,
   PreviewCardPayload,
   LineupCardPayload,
   DetailState,
   CounterPhase,
+  ReceiptData,
 } from '@/components/brief/types'
 import { cn } from '@/lib/utils'
 
@@ -36,6 +40,7 @@ const COUNTER_CAP = 10
 type GenState =
   | { phase: 'idle' }
   | { phase: 'generating'; steps: string[] }
+  | { phase: 'no_change' }
   | { phase: 'error'; message: string }
   | { phase: 'fpl_updating' }
 
@@ -52,6 +57,7 @@ interface BriefClientProps {
   displayName: string
   initial: string
   teamName: string
+  receiptData: ReceiptData
 }
 
 // ── Risk tag key ──────────────────────────────────────────────────────────────
@@ -99,6 +105,7 @@ export function BriefClient({
   displayName,
   initial,
   teamName,
+  receiptData,
 }: BriefClientProps) {
   const brief = initialBrief
   const router = useRouter()
@@ -141,7 +148,7 @@ export function BriefClient({
             router.refresh()
             return
           } else if (data.status === 'no_change') {
-            setGenState({ phase: 'idle' })
+            setGenState({ phase: 'no_change' })
             return
           } else if (data.status === 'fpl_updating') {
             setGenState({ phase: 'fpl_updating' })
@@ -357,6 +364,7 @@ export function BriefClient({
 
   const transferCards = activeCards.filter((c: BriefCard) => c.type === 'transfer')
   const captainCard = activeCards.find((c: BriefCard) => c.type === 'captain')
+  const chipCard = activeCards.find((c: BriefCard) => c.type === 'chip')
   const lineupCards = activeCards.filter((c: BriefCard) => c.type === 'lineup')
   const previewCards = activeCards.filter((c: BriefCard) => c.type === 'preview')
 
@@ -393,7 +401,9 @@ export function BriefClient({
       {/* Banners */}
       {isFplUpdating && (
         <BriefBanner variant="info">
-          <strong>FPL is updating.</strong> Showing your saved brief. Counters pause until FPL is back.
+          <strong>FPL is updating.</strong>{' '}
+          {brief ? 'Showing your saved brief. ' : ''}
+          Counters pause until FPL is back.
         </BriefBanner>
       )}
       {isDeadlinePassed && (
@@ -491,6 +501,18 @@ export function BriefClient({
                     {genState.phase === 'generating' && (
                       <span className="text-[13px] text-muted-foreground">Refreshing your brief…</span>
                     )}
+                    {genState.phase === 'no_change' && (
+                      <>
+                        <span className="text-[13px] text-muted-foreground">Brief is up to date — nothing changed since last generation.</span>
+                        <button
+                          type="button"
+                          onClick={triggerGenerate}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                        >
+                          Refresh brief
+                        </button>
+                      </>
+                    )}
                     {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
                       <>
                         <span className="text-[13px] text-muted-foreground">
@@ -565,12 +587,21 @@ export function BriefClient({
                           })()}
                         </div>
                       )}
+                      {/* Chip card */}
+                      {chipCard && (
+                        <div
+                          className="brief-card-anim"
+                          style={{ animationDelay: `${(transferCards.length + 1) * 60}ms` }}
+                        >
+                          <ChipCard payload={chipCard.payload as ChipCardPayload} />
+                        </div>
+                      )}
                       {/* Lineup cards */}
                       {lineupCards.map((card, i) => (
                         <div
                           key={card.id}
                           className="brief-card-anim"
-                          style={{ animationDelay: `${(transferCards.length + 1 + i) * 60}ms` }}
+                          style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + i) * 60}ms` }}
                         >
                           <LineupCard payload={card.payload as LineupCardPayload} />
                         </div>
@@ -580,7 +611,7 @@ export function BriefClient({
                         <div
                           key={card.id}
                           className="brief-card-anim"
-                          style={{ animationDelay: `${(transferCards.length + 1 + lineupCards.length + i) * 60}ms` }}
+                          style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + lineupCards.length + i) * 60}ms` }}
                         >
                           <PreviewCard payload={card.payload as PreviewCardPayload} />
                         </div>
@@ -597,7 +628,7 @@ export function BriefClient({
                         return (
                           <div
                             className="brief-card-anim"
-                            style={{ animationDelay: `${(transferCards.length + 1 + lineupCards.length + previewCards.length) * 60}ms` }}
+                            style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + lineupCards.length + previewCards.length) * 60}ms` }}
                           >
                             <button
                               type="button"
@@ -625,6 +656,10 @@ export function BriefClient({
                           </div>
                         )
                       })()}
+                      {/* Receipts section */}
+                      <div className="pt-4">
+                        <ReceiptsSection data={receiptData} />
+                      </div>
                     </div>
                 ) : (
                   <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
@@ -683,8 +718,19 @@ export function BriefClient({
                           <>
                             <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
                             <p className="text-small mt-1 text-muted-foreground">
-                              Your brief will arrive on schedule before the deadline.
+                              {isFplUpdating
+                                ? "FPL is updating — reload once it's back to generate your brief."
+                                : 'Your brief will arrive on schedule before the deadline.'}
                             </p>
+                            {isFplUpdating && (
+                              <button
+                                type="button"
+                                onClick={() => router.refresh()}
+                                className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-5 py-2.5 text-[14px] font-semibold text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                              >
+                                Reload
+                              </button>
+                            )}
                           </>
                         )}
                         {genState.phase === 'generating' && (
