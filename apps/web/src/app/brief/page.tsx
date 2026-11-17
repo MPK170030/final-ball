@@ -88,7 +88,7 @@ export default async function BriefPage() {
 
   // Load FPL data first so we know the current gameweek for the version count query
   const fplData = await loadFplData(teamId)
-  const gameweek = fplData.gameweek
+  const fplGameweek = fplData.gameweek
   // International break: deadline is > 8 days away — brief exists as a planning tool
   const isEarlyPlanning =
     !fplData.deadlinePassed &&
@@ -110,7 +110,7 @@ export default async function BriefPage() {
       .from('counter_usage')
       .select('count')
       .eq('user_id', user.id)
-      .eq('gameweek', gameweek)
+      .eq('gameweek', fplGameweek)
       .maybeSingle(),
     // Last 5 GWs of decisions
     supabase
@@ -122,6 +122,9 @@ export default async function BriefPage() {
   ])
 
   const briefRow = latestBriefRes.data
+  // When FPL is down, loadFplData falls back to GW 1 which is wrong.
+  // Use the user's latest brief GW instead — it's the best proxy for the real current GW.
+  const gameweek = !fplData.fplOk && briefRow ? briefRow.gameweek : fplGameweek
   const countersThisGw = counterUsageRes.data?.count ?? 0
 
   // Build receipts data from the last 5 GWs of decisions

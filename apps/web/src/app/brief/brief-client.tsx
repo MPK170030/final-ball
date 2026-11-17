@@ -401,7 +401,9 @@ export function BriefClient({
       {/* Banners */}
       {isFplUpdating && (
         <BriefBanner variant="info">
-          <strong>FPL is updating.</strong> Showing your saved brief. Counters pause until FPL is back.
+          <strong>FPL is updating.</strong>{' '}
+          {brief ? 'Showing your saved brief. ' : ''}
+          Counters pause until FPL is back.
         </BriefBanner>
       )}
       {isDeadlinePassed && (
@@ -716,8 +718,19 @@ export function BriefClient({
                           <>
                             <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
                             <p className="text-small mt-1 text-muted-foreground">
-                              Your brief will arrive on schedule before the deadline.
+                              {isFplUpdating
+                                ? "FPL is updating — reload once it's back to generate your brief."
+                                : 'Your brief will arrive on schedule before the deadline.'}
                             </p>
+                            {isFplUpdating && (
+                              <button
+                                type="button"
+                                onClick={() => router.refresh()}
+                                className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-5 py-2.5 text-[14px] font-semibold text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                              >
+                                Reload
+                              </button>
+                            )}
                           </>
                         )}
                         {genState.phase === 'generating' && (
