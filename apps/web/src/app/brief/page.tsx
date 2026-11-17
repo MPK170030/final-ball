@@ -131,8 +131,8 @@ export default async function BriefPage() {
   const rawDecisions = decisionsRes.data ?? []
   const decisionIds = rawDecisions.map((d) => d.id)
 
-  let intentsMap = new Map<string, string>()
-  let receiptsMap = new Map<string, {
+  const intentsMap = new Map<string, string>()
+  const receiptsMap = new Map<string, {
     window_start_gw: number; window_end_gw: number; player_in_pts: number | null
     player_out_pts: number | null; delta_pts: number | null; status: string
   }>()
