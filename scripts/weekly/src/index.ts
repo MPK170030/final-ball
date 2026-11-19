@@ -102,7 +102,7 @@ async function processUser(opts: {
 
     if (existing && existing.length > 0) {
       console.log(`[weekly] ${tag} — brief already exists (v${existing[0].version}), skipping generation.`)
-      await maybeEmail({ db, userId, email, gameweek, briefId: existing[0].id })
+      await maybeEmail({ db, userId, email, gameweek, briefId: existing[0].id, appUrl: APP_URL })
       return
     }
 
@@ -180,7 +180,7 @@ async function processUser(opts: {
     if (updateErr) throw new Error(updateErr.message)
 
     console.log(`[weekly] ${tag} v${nextVersion} — brief ready.`)
-    await maybeEmail({ db, userId, email, gameweek, briefId })
+    await maybeEmail({ db, userId, email, gameweek, briefId, appUrl: APP_URL })
   } catch (err) {
     console.error(`[weekly] ${tag} — error:`, err)
   }
@@ -192,6 +192,7 @@ async function maybeEmail(opts: {
   email: string
   gameweek: number
   briefId: string
+  appUrl: string
 }) {
   const { db, userId, email, gameweek, briefId } = opts
   const tag = `user=${userId.slice(0, 8)} GW${gameweek}`
@@ -216,7 +217,7 @@ async function maybeEmail(opts: {
   }
 
   try {
-    await sendBriefEmail({ to: email, gameweek, appUrl: APP_URL })
+    await sendBriefEmail({ to: email, gameweek, appUrl: APP_URL, userId })
     await db.from('email_log').insert({ user_id: userId, gameweek, brief_id: briefId, status: 'sent' })
     console.log(`[weekly] ${tag} — email sent.`)
   } catch (err) {

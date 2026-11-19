@@ -267,6 +267,7 @@ export function SampleClient({ briefData }: SampleClientProps) {
             quickReplies={[]}
             onCounterSubmit={() => undefined}
             onCounterReset={() => undefined}
+            onRegenerate={() => undefined}
             counterDisabled={true}
             counterDisabledReason="Sign in to counter any pick."
           />
@@ -293,6 +294,7 @@ export function SampleClient({ briefData }: SampleClientProps) {
           quickReplies={[]}
           onCounterSubmit={() => undefined}
           onCounterReset={() => undefined}
+          onRegenerate={() => undefined}
           counterDisabled={true}
           counterDisabledReason="Sign in to counter any pick."
         />

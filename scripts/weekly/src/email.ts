@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { makeUnsubToken } from './unsubToken.js'
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.resend.com',
@@ -14,9 +15,14 @@ export async function sendBriefEmail(opts: {
   to: string
   gameweek: number
   appUrl: string
+  userId: string
 }): Promise<void> {
-  const { to, gameweek, appUrl } = opts
+  const { to, gameweek, appUrl, userId } = opts
   const briefUrl = `${appUrl}/brief`
+  const secret = process.env.UNSUBSCRIBE_SECRET
+  const unsubscribeUrl = secret
+    ? `${appUrl}/unsubscribe?token=${makeUnsubToken(userId, secret)}`
+    : null
 
   await transporter.sendMail({
     from: `Final Ball <briefs@${process.env.EMAIL_FROM_DOMAIN ?? 'finalball.manavpkothari.dev'}>`,
@@ -29,6 +35,7 @@ export async function sendBriefEmail(opts: {
       ``,
       `--`,
       `Final Ball is an independent tool and is not affiliated with the Premier League or Fantasy Premier League.`,
+      ...(unsubscribeUrl ? [`To stop these emails: ${unsubscribeUrl}`] : []),
     ].join('\n'),
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
@@ -41,6 +48,8 @@ export async function sendBriefEmail(opts: {
         </a>
         <p style="margin-top: 32px; font-size: 12px; color: #888;">
           Final Ball is an independent tool and is not affiliated with the Premier League or Fantasy Premier League.
+          &nbsp;·&nbsp;
+          ${unsubscribeUrl ? `<a href="${unsubscribeUrl}" style="color: #888;">Unsubscribe</a>` : ''}
         </p>
       </div>
     `,

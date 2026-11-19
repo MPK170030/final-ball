@@ -58,6 +58,7 @@ interface BriefClientProps {
   initial: string
   teamName: string
   receiptData: ReceiptData
+  emailOptOut: boolean
 }
 
 // ── Risk tag key ──────────────────────────────────────────────────────────────
@@ -106,6 +107,7 @@ export function BriefClient({
   initial,
   teamName,
   receiptData,
+  emailOptOut,
 }: BriefClientProps) {
   const brief = initialBrief
   const router = useRouter()
@@ -114,6 +116,7 @@ export function BriefClient({
   const [counterStates, setCounterStates] = useState<Record<string, CounterPhase>>({})
   const [countersUsedThisSession, setCountersUsedThisSession] = useState(0)
   const [genState, setGenState] = useState<GenState>({ phase: 'idle' })
+  const [regenPayloads, setRegenPayloads] = useState<Record<string, BriefCard['payload']>>({})
   // Tracks the button that triggered the detail panel so focus returns on close
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null)
 
@@ -191,7 +194,12 @@ export function BriefClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const activeCards = brief?.cards ?? []
+  const activeCards = useMemo(
+    () => (brief?.cards ?? []).map(c =>
+      regenPayloads[c.id] ? { ...c, payload: regenPayloads[c.id] } : c,
+    ),
+    [brief?.cards, regenPayloads],
+  )
 
   // ── Counter state ───────────────────────────────────────────────────────────
   const countersLeft = Math.max(0, COUNTER_CAP - countersThisGw - countersUsedThisSession)
@@ -267,6 +275,7 @@ export function BriefClient({
               outcome?: string
               response?: string
               newPick?: unknown
+              counterId?: string
               message?: string
             }
 
@@ -284,6 +293,8 @@ export function BriefClient({
                   outcome: data.outcome as 'held' | 'changed_fact' | 'accepted_preference' | 'declined',
                   response: data.response!,
                   newPick: data.newPick ?? null,
+                  counterId: data.counterId ?? '',
+                  counterType: detail?.counterType,
                 },
               }))
               setCountersUsedThisSession(prev => prev + 1)
@@ -306,6 +317,27 @@ export function BriefClient({
     if (!cardId) return
     setCounterStates(prev => ({ ...prev, [cardId]: { phase: 'idle' } }))
   }, [detail?.cardId])
+
+  const handleRegenerate = useCallback((payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => {
+    const cardId = detail?.cardId
+    if (!cardId) return
+    setRegenPayloads(prev => {
+      const updates: Record<string, BriefCard['payload']> = {
+        ...prev,
+        [cardId]: payload as unknown as TransferCardPayload,
+      }
+      if (lineupPayload) {
+        const lineupCard = (brief?.cards ?? []).find(c => c.type === 'lineup')
+        if (lineupCard) updates[lineupCard.id] = lineupPayload as unknown as LineupCardPayload
+      }
+      if (captainPayload) {
+        const captainCard = (brief?.cards ?? []).find(c => c.type === 'captain')
+        if (captainCard) updates[captainCard.id] = captainPayload as unknown as CaptainCardPayload
+      }
+      return updates
+    })
+    closeDetail()
+  }, [detail?.cardId, brief?.cards, closeDetail])
 
   // ── Transfer card lookup for detail panel ───────────────────────────────────
   const detailTransferPayload = useMemo<TransferCardPayloadTransfer | undefined>(() => {
@@ -384,6 +416,7 @@ export function BriefClient({
     quickReplies,
     onCounterSubmit: submitCounter,
     onCounterReset: resetCounter,
+    onRegenerate: handleRegenerate,
     counterDisabled: !canCounter || activeCounterPhase.phase === 'checking',
     counterDisabledReason,
   }
@@ -395,7 +428,7 @@ export function BriefClient({
         <span className="text-[17px] font-semibold tracking-[-0.01em] text-foreground md:text-[19px]">
           Final Ball
         </span>
-        <AccountMenu initial={initial} displayName={displayName} />
+        <AccountMenu initial={initial} displayName={displayName} emailOptOut={emailOptOut} />
       </header>
 
       {/* Banners */}
@@ -562,6 +595,7 @@ export function BriefClient({
                               weakspotCounterDisabled={cardCounterDisabled}
                               weakspotCounterDisabledReason={counterDisabledReason}
                               isSelected={detail?.cardId === card.id}
+                              newsFlags={card.newsFlags}
                             />
                           </div>
                         )
@@ -582,6 +616,7 @@ export function BriefClient({
                                 counterDisabled={cardCounterDisabled}
                                 counterDisabledReason={counterDisabledReason}
                                 isSelected={detail?.cardId === captainCard.id}
+                                newsFlags={captainCard.newsFlags}
                               />
                             )
                           })()}

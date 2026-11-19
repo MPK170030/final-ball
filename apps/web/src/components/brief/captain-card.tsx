@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import type { CaptainCardPayload, CaptainPickWithMeta, RiskTag } from './types'
+import type { CaptainCardPayload, CaptainPickWithMeta, RiskTag, NewsFlag } from './types'
 
 interface CaptainCardProps {
   payload: CaptainCardPayload
@@ -10,6 +10,7 @@ interface CaptainCardProps {
   counterDisabled?: boolean
   counterDisabledReason?: string
   isSelected?: boolean
+  newsFlags?: NewsFlag[]
 }
 
 const POS: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
@@ -53,6 +54,42 @@ function CaptainBadge({ type }: { type: 'C' | 'V' }) {
   )
 }
 
+function NewsBanner({
+  flags,
+  onCounterClick,
+  counterDisabled,
+}: {
+  flags: NewsFlag[]
+  onCounterClick?: (trigger: HTMLButtonElement) => void
+  counterDisabled?: boolean
+}) {
+  return (
+    <div className="rounded-[10px] border border-amber-500/40 bg-amber-500/10 px-3.5 py-3 flex flex-col gap-2">
+      <div className="flex items-start gap-2">
+        <span className="mt-px shrink-0 text-amber-500" aria-hidden="true">⚠</span>
+        <div className="flex flex-col gap-0.5">
+          <p className="text-[13px] font-semibold text-foreground">News since this brief</p>
+          {flags.map((f) => (
+            <p key={f.playerName} className="text-[13px] text-muted-foreground">
+              <span className="font-medium text-foreground">{f.playerName}:</span> {f.news}
+            </p>
+          ))}
+        </div>
+      </div>
+      {onCounterClick && (
+        <button
+          type="button"
+          onClick={(e) => onCounterClick(e.currentTarget)}
+          disabled={counterDisabled}
+          className="self-start inline-flex min-h-[36px] items-center rounded-[8px] border border-amber-500/50 bg-transparent px-3 text-[13px] font-semibold text-foreground hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Counter to re-check
+        </button>
+      )}
+    </div>
+  )
+}
+
 export function CaptainCard({
   payload,
   onWhyClick,
@@ -60,6 +97,7 @@ export function CaptainCard({
   counterDisabled = false,
   counterDisabledReason,
   isSelected = false,
+  newsFlags,
 }: CaptainCardProps) {
   const { captain, vc, alternatives } = payload
 
@@ -100,6 +138,10 @@ export function CaptainCard({
           )}
         </div>
       </div>
+
+      {newsFlags && newsFlags.length > 0 && (
+        <NewsBanner flags={newsFlags} onCounterClick={onCounterClick} counterDisabled={counterDisabled} />
+      )}
 
       {/* ── Desktop: 4-column grid (C · V · alts) ──────────────────────────── */}
       <div

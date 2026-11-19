@@ -1,4 +1,4 @@
-# Status — Mon 16 November 2026
+# Status — Thu 19 November 2026
 
 ## Done
 
@@ -50,37 +50,67 @@
 - **`no_change` UI state:** when re-generation detects no input change, brief client now shows "Brief is up to date" with a "Refresh brief" button instead of silently returning to idle.
 - **Captain pre-validation (AGT-02):** `generateBrief` pre-validates submitted captain/VC against the post-transfer starting XI and retries once before falling back to deterministic selection.
 
+### Post-18 Nov (19 Nov)
+- **Regenerate on `changed_fact` + DB persistence:** Weakspot counters with `changed_fact` outcome now show "Regenerate card" button. Regen route persists updated transfer, lineup, and captain card payloads to DB so the regenerated card survives page reload. Captain card is also re-generated based on the new post-transfer squad.
+- **Delete account (US-7.2):** `DELETE /api/account` cascades through all user tables in FK-safe order then calls `auth.admin.deleteUser`. Settings sheet in account menu shows delete confirmation UI with two-step confirm.
+- **Email opt-out (US-6.2):** `POST /api/account/email-opt-out` toggles `email_opt_out` on profiles. Settings sheet shows an email toggle. Weekly emails now include an unsubscribe link (`/unsubscribe?uid=...`). `GET /unsubscribe` page applies opt-out server-side.
+- **News since this brief banner (US-4.4 / D17.9):** `page.tsx` computes `newsFlags` for transfer and captain cards by comparing stored player `news`/`status` (from card payload) against current bootstrap data. Flags only fire when `news` or `status` changed since the brief was generated — no false positives on players who were already flagged at brief time. `NewsBanner` component renders in `TransferCard` and `CaptainCard` with a "Counter to re-check" button.
+
+### Post-16 Nov (17 Nov)
+- **Receipts pipeline — transfer detection and UI (E5, partial):**
+  - `detectDecisions` in `scripts/daily/src/receipts.ts`: reads FPL transfers after the deadline, compares with stored brief cards, writes `decisions` / `intents` / `receipts` rows; idempotent.
+  - `settleReceipts`: closes receipts whose 3-GW window has been played; sums points for player in/out from `element_summary`.
+  - Analysis helpers: `labelDecision`, `inferIntent`, `computeReceiptWindow`, `settleDelta` in `packages/agent/src/analysis/receipts.ts`; full test suite in `analysis/__tests__/receipts.test.ts`.
+  - DB migration `008_receipts.sql`: `decisions`, `intents`, `receipts` tables.
+  - `ReceiptsSection` UI: scorecard (rolling transfer-impact delta + followed/total count); per-row display with label badge (Followed / Your move / Saved FT / Ignored), GW, player-in → player-out, pending or settled delta. Wired into `brief-client.tsx`.
+  - `detectDecisions` and `settleReceipts` integrated into the daily-refresh job (`scripts/daily/src/index.ts`).
+- **Captain receipts (US-5.5):**
+  - `labelCaptainDecision`, `computeCaptainReceiptWindow`, `BriefCaptainContext` added to `receipts.ts`.
+  - `detectDecisions` now processes captain cards alongside transfers: reads actual captain pick from FPL picks endpoint, writes a `kind='captain'` decision row + 1-GW receipt.
+  - DB migration `009_captain_receipts.sql`: adds `kind` column to `decisions`; extends label check constraint to include `captain_followed` / `captain_ignored`.
+  - `ReceiptsSection` renders captain rows with "C: Followed" / "C: Own pick" badges; captain rows show actual captain vs agent's pick.
+- **Counter records settlement (US-5.8):**
+  - `settleCounterRecords` in `receipts.ts`: for each pending `counter_record`, fetches the agent's original pick points over the same window, compares with what the user actually did, writes `verdict` (agent_right / user_right / even) with a ±2 pt threshold.
+  - `detectDecisions` creates pending `counter_records` at detection time, wired to the decision for that card.
+  - Scorecard shows "pushbacks you won" stat (user_right / total) when any counter records exist.
+- **Scorecard risk-tag breakdown:** followed/total and settled delta shown per risk tag (safe / balanced / bold) in the scorecard.
+- **Counter regenerate flow (weakspot `accepted_preference`):**
+  - `POST /api/counter/[counterId]/regenerate`: for weakspot counters where the agent accepted the user's preferred sell candidate, streams a fresh transfer plan for that player; SSE progress steps.
+  - `newPayload` now persisted for weakspot `accepted_preference` outcomes (previously only `changed_fact`).
+  - `buildTransferPlanForSell` exported from `candidates.ts`; `buildTransferCardPayload` / `buildSaveCardPayload` extracted from `buildCards.ts` and exported for reuse by the regenerate route.
+- **Regenerate updates main card + lineup in place (18 Nov):**
+  - Regenerated payload now replaces the `TransferCard` in the main column directly (closes the detail sheet on completion) rather than showing inline text in the side panel.
+  - Regen route also computes a post-transfer lineup (`computeLineup` on the swapped squad, now exported from the agent package) and streams it as `lineupPayload`; the `LineupCard` ("Starting 11") updates alongside the transfer card.
+  - `regenPayloads` state in `BriefClient` keyed by card ID; `activeCards` derived via `useMemo` applying overrides — keeps the "Why" tab, counter quick-replies, and all other consumers consistent with the regenerated data.
+
 ---
 
 ## Not yet (full MVP scope, target 20 November)
 
-### Chips (D5.1–D5.7)
-- ~~Weekly chip alert card + chip status strip with expiry countdown.~~ ✅ Done
-- ~~Timing advice for all four chips (TC, BB, WC, FH); expiry nudges.~~ ✅ Done
-- ~~Chip advice scans the full fixture list for blanks and doubles ("provisional").~~ ✅ Done
+### "News since this brief" banner (D17.9) — ✅ Done
+- Computed live at render from stored card payloads vs current bootstrap (`page.tsx` `computeNewsFlags`). No daily-job change needed — bootstrap is already loaded on every page visit.
 
-### "News since this brief" banner (D17.9)
-- Daily job flags players named in stored briefs (sell candidate, picks, captain options) when injury/suspension/availability changes.
-- Affected cards show the banner; user counters to re-check.
-- Requires daily-refresh completion (D11.7) below.
+### Receipts, scorecard, and journal (E5) — ✅ Done
 
-### Receipts, scorecard, and journal (E5)
-- Transfer receipt pipeline: label (Followed / Your own move / Ignored, rolled / Ignored, transferred), inferred intent (points / funding / injury cover), linked funding moves.
-- Captain and chip receipts.
-- Counter records: outcome storage and scoring after the receipt window ("When you push back, who's usually right?").
-- 5-gameweek scorecard: rolling transfer impact headline; followed vs. ignored comparison.
-- Decision journal: optional one-line note per move on the receipt.
+- ~~Transfer receipt pipeline: label, inferred intent, `decisions`/`intents`/`receipts` tables, settlement, `ReceiptsSection` UI, daily-refresh integration.~~ ✅
+- ~~Captain receipts (US-5.5): `labelCaptainDecision`, 1-GW window, `kind='captain'` decisions, migration 009.~~ ✅
+- ~~Counter records: outcome storage and scoring after the receipt window (US-5.8).~~ ✅
+- ~~Scorecard risk-tag breakdown: followed/total and delta per safe/balanced/bold.~~ ✅
+- ~~Linked funding moves (D7.8): `inferIntent` now accepts buy/sell costs; returns `'funding'` when buy is ≥0.5m cheaper. D7.9 pairing deferred (see Not Yet).~~ ✅
+- ~~Chip receipts (US-5.5 remainder): `labelChipDecision` + `BriefChipContext` in `receipts.ts`; `detectDecisions` now includes chip cards, writes `kind='chip'` decisions with `chip_followed`/`chip_ignored` label; no receipt for chips (no points delta). DB migration `010_chip_receipts.sql` extends kind + label constraints. `ChipRow` renders chip display name + label badge.~~ ✅
+- ~~Scorecard deep-links (US-5.6): "transfer impact" and "followed agent" stats scroll to the receipts list on click.~~ ✅
+- ~~Decision journal (US-5.7): `journal_note` column already present from migration 008; `PATCH /api/receipts/[decisionId]` saves notes with ownership check; inline note editing on each receipt row (click to edit, blur/Enter to save).~~ ✅
 
 ### Demo mode (E8)
 - Curated frozen snapshot + "See it on a live team" toggle, using the owner's real team (D1.3, D15.4).
 
-### Settings (E7, partially done)
-- Email opt-out (requires email setup).
-- Unlink and delete all data (D9.12).
+### Settings (E7) — ✅ Done
+- Email opt-out toggle in Settings sheet + unsubscribe link in emails. ✅
+- Delete all data with confirmation. ✅
 
 ### Daily-refresh completion (D11.7)
+- ~~Receipt detection and settlement.~~ ✅ Done
 - News flagging for stored briefs (feeds the banner above).
-- Receipt and counter-record settlement after played gameweeks.
 
 ### Stick-or-diverge check-in (D3.3)
 - Check-in card when last week's preview exists: pre-selected stick/diverge recommendation, one-tap confirm.
