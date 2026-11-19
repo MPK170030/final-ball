@@ -1,4 +1,5 @@
 import type { EntryTransfer, Player } from '../fpl/types.js'
+import type { ChipName, ChipTimingAdvice } from './chips.js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -7,6 +8,14 @@ export type DecisionLabel =
   | 'own_move'            // user transferred when brief said save (no matching card)
   | 'ignored_rolled'      // brief suggested a move; user rolled the free transfer
   | 'ignored_transferred' // brief suggested a move; user transferred a different player
+
+export type CaptainDecisionLabel =
+  | 'captain_followed'  // user captained the agent's #1 captain pick
+  | 'captain_ignored'   // user captained someone else
+
+export type ChipDecisionLabel =
+  | 'chip_followed'  // chip matched what the agent recommended for this GW
+  | 'chip_ignored'   // chip was played but not what the agent recommended
 
 export type InferredIntent = 'points' | 'funding' | 'injury_cover'
 
@@ -77,14 +86,65 @@ export function labelDecision(
 // ── Intent inference ──────────────────────────────────────────────────────────
 
 /**
- * Infers the intent behind a transfer from the sold player's status.
- * Funding detection (D7.9) is deferred — we default non-injury moves to 'points'.
+ * Infers the intent behind a transfer.
+ * Injury check takes priority; then funding (buy is ≥0.5m cheaper than sell);
+ * otherwise defaults to 'points'.
+ * Costs are in tenths (FPL API convention), so 0.5m = 5 tenths.
  */
-export function inferIntent(playerOut: Player): InferredIntent {
+export function inferIntent(
+  playerOut: Player,
+  elementInCost?: number,
+  elementOutCost?: number,
+): InferredIntent {
   if (playerOut.status !== 'a' || playerOut.news !== '') {
     return 'injury_cover'
   }
+  if (elementInCost !== undefined && elementOutCost !== undefined && elementInCost < elementOutCost - 4) {
+    return 'funding'
+  }
   return 'points'
+}
+
+// ── Captain label assignment ──────────────────────────────────────────────────
+
+export interface BriefCaptainContext {
+  captainPlayerId: number
+  vcPlayerId: number | null
+}
+
+/**
+ * Assigns a captain decision label.
+ * captain_followed = captained the agent's #1 pick.
+ * captain_ignored  = captained anyone else (including VC, alternatives, own choice).
+ */
+export function labelCaptainDecision(
+  brief: BriefCaptainContext,
+  actualCaptainId: number | null,
+): CaptainDecisionLabel {
+  if (actualCaptainId === null) return 'captain_ignored'
+  if (actualCaptainId === brief.captainPlayerId) return 'captain_followed'
+  return 'captain_ignored'
+}
+
+// ── Chip label assignment ─────────────────────────────────────────────────────
+
+export interface BriefChipContext {
+  timing: ChipTimingAdvice[]
+}
+
+/**
+ * Returns 'chip_followed' if the brief's timing had a recommendation for
+ * this exact chip in this exact gameweek; 'chip_ignored' otherwise.
+ */
+export function labelChipDecision(
+  brief: BriefChipContext,
+  activeChip: string,
+  gameweek: number,
+): ChipDecisionLabel {
+  const recommended = brief.timing.find(
+    (t) => t.chip === (activeChip as ChipName) && t.targetGwId === gameweek,
+  )
+  return recommended ? 'chip_followed' : 'chip_ignored'
 }
 
 // ── Receipt window ────────────────────────────────────────────────────────────
@@ -98,6 +158,14 @@ export function computeReceiptWindow(transferGw: number): {
     windowStartGw: transferGw + 1,
     windowEndGw: transferGw + 3,
   }
+}
+
+/** Returns the 1-GW window for a captain decision (US-5.5). */
+export function computeCaptainReceiptWindow(gameweek: number): {
+  windowStartGw: number
+  windowEndGw: number
+} {
+  return { windowStartGw: gameweek, windowEndGw: gameweek }
 }
 
 // ── Delta settlement ──────────────────────────────────────────────────────────

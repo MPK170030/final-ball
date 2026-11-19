@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   labelDecision,
   inferIntent,
+  labelChipDecision,
   computeReceiptWindow,
   settleDelta,
   type BriefContext,
+  type BriefChipContext,
 } from '../receipts.js'
 import type { EntryTransfer } from '../../fpl/types.js'
 import { makePlayer } from './helpers.js'
@@ -114,6 +116,60 @@ describe('inferIntent', () => {
   it('returns "points" for a fully available player with no news', () => {
     const p = makePlayer({ id: 1, element_type: 3, team: 1, now_cost: 70, status: 'a' })
     expect(inferIntent(p)).toBe('points')
+  })
+
+  it('returns "funding" when buy is exactly 0.5m cheaper than sell', () => {
+    const p = makePlayer({ id: 1, element_type: 3, team: 1, now_cost: 70, status: 'a' })
+    expect(inferIntent(p, 60, 65)).toBe('funding')
+  })
+
+  it('returns "funding" when buy is more than 0.5m cheaper', () => {
+    const p = makePlayer({ id: 1, element_type: 3, team: 1, now_cost: 70, status: 'a' })
+    expect(inferIntent(p, 55, 65)).toBe('funding')
+  })
+
+  it('returns "points" when buy is only 0.4m cheaper (below threshold)', () => {
+    const p = makePlayer({ id: 1, element_type: 3, team: 1, now_cost: 70, status: 'a' })
+    expect(inferIntent(p, 61, 65)).toBe('points')
+  })
+
+  it('returns "injury_cover" over funding when player is unavailable', () => {
+    const p = makePlayer({ id: 1, element_type: 3, team: 1, now_cost: 70, status: 'i' })
+    expect(inferIntent(p, 55, 65)).toBe('injury_cover')
+  })
+
+  it('returns "points" when costs are not provided', () => {
+    const p = makePlayer({ id: 1, element_type: 3, team: 1, now_cost: 70, status: 'a' })
+    expect(inferIntent(p)).toBe('points')
+  })
+})
+
+// ── labelChipDecision ─────────────────────────────────────────────────────────
+
+describe('labelChipDecision', () => {
+  const timing: BriefChipContext['timing'] = [
+    { chip: '3xc', recommendation: 'Use Triple Captain in GW15', targetGwId: 15, provisional: false },
+    { chip: 'bboost', recommendation: 'Use Bench Boost in GW22', targetGwId: 22, provisional: false },
+  ]
+
+  it('returns "chip_followed" when played chip matches the brief timing for this GW', () => {
+    const brief: BriefChipContext = { timing }
+    expect(labelChipDecision(brief, '3xc', 15)).toBe('chip_followed')
+  })
+
+  it('returns "chip_ignored" when played chip matches a different GW', () => {
+    const brief: BriefChipContext = { timing }
+    expect(labelChipDecision(brief, '3xc', 16)).toBe('chip_ignored')
+  })
+
+  it('returns "chip_ignored" when a different chip was played', () => {
+    const brief: BriefChipContext = { timing }
+    expect(labelChipDecision(brief, 'wildcard', 15)).toBe('chip_ignored')
+  })
+
+  it('returns "chip_ignored" when brief has no timing entries', () => {
+    const brief: BriefChipContext = { timing: [] }
+    expect(labelChipDecision(brief, 'bboost', 22)).toBe('chip_ignored')
   })
 })
 

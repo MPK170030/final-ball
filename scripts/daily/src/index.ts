@@ -15,7 +15,7 @@
 
 import { FplClient, getPreviousGameweek, isGameweekFinished } from '@finalball/agent'
 import { createClient } from '@finalball/db'
-import { detectDecisions, settleReceipts } from './receipts.js'
+import { detectDecisions, settleReceipts, settleCounterRecords } from './receipts.js'
 
 const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -81,7 +81,11 @@ async function main() {
   if (finishedGw > 0) {
     console.log(`[daily] Settling receipts through GW${finishedGw}…`)
     await settleReceipts(db, fpl, finishedGw)
-    console.log(`[daily] Settlement done.`)
+    console.log(`[daily] Receipt settlement done.`)
+
+    console.log(`[daily] Settling counter records through GW${finishedGw}…`)
+    await settleCounterRecords(db, fpl, finishedGw)
+    console.log(`[daily] Counter record settlement done.`)
   }
 
   console.log('[daily] Done.')

@@ -103,11 +103,17 @@ export interface ChipCardPayload {
 
 export { ChipStatus, ChipTimingAdvice, SpecialGw }
 
+export interface NewsFlag {
+  playerName: string
+  news: string
+}
+
 export interface BriefCard {
   id: string
   type: 'transfer' | 'captain' | 'chip' | 'preview' | 'lineup'
   position: number
   payload: TransferCardPayload | CaptainCardPayload | ChipCardPayload | PreviewCardPayload | LineupCardPayload
+  newsFlags?: NewsFlag[]
 }
 
 // ── Receipt types (E5) ───────────────────────────────────────────────────────
@@ -115,14 +121,17 @@ export interface BriefCard {
 export interface ReceiptRowData {
   decisionId: string
   gameweek: number
-  label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+  kind: 'transfer' | 'captain' | 'chip'
+  label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred' | 'captain_followed' | 'captain_ignored' | 'chip_followed' | 'chip_ignored'
   riskTag: 'safe' | 'balanced' | 'bold' | null
   intent: 'points' | 'funding' | 'injury_cover'
+  note: string | null
   actualMove: {
     element_in: number
     element_in_name: string | null
     element_out: number
     element_out_name: string | null
+    chip?: string
   } | null
   receipt: {
     windowStartGw: number
@@ -134,8 +143,16 @@ export interface ReceiptRowData {
   } | null
 }
 
+export interface CounterRecordsSummary {
+  total: number
+  userRight: number
+  agentRight: number
+  even: number
+}
+
 export interface ReceiptData {
   rows: ReceiptRowData[]
+  counterRecords: CounterRecordsSummary | null
 }
 
 export interface BriefData {
@@ -157,6 +174,8 @@ export type CounterPhase =
       outcome: 'held' | 'changed_fact' | 'accepted_preference' | 'declined'
       response: string
       newPick: unknown
+      counterId: string
+      counterType?: string
     }
   | { phase: 'error'; message: string }
 

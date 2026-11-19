@@ -3,7 +3,7 @@
 import { AlertTriangleIcon } from 'lucide-react'
 import { FixtureChip } from './fixture-chip'
 import { cn } from '@/lib/utils'
-import type { TransferCardPayload, RiskTag } from './types'
+import type { TransferCardPayload, RiskTag, NewsFlag } from './types'
 
 type GwScore = {
   gwId: number
@@ -79,6 +79,42 @@ function WhyLink({
   )
 }
 
+function NewsBanner({
+  flags,
+  onCounterClick,
+  counterDisabled,
+}: {
+  flags: NewsFlag[]
+  onCounterClick?: (trigger: HTMLButtonElement) => void
+  counterDisabled?: boolean
+}) {
+  return (
+    <div className="rounded-[10px] border border-amber-500/40 bg-amber-500/10 px-3.5 py-3 flex flex-col gap-2">
+      <div className="flex items-start gap-2">
+        <span className="mt-px shrink-0 text-amber-500" aria-hidden="true">⚠</span>
+        <div className="flex flex-col gap-0.5">
+          <p className="text-[13px] font-semibold text-foreground">News since this brief</p>
+          {flags.map((f) => (
+            <p key={f.playerName} className="text-[13px] text-muted-foreground">
+              <span className="font-medium text-foreground">{f.playerName}:</span> {f.news}
+            </p>
+          ))}
+        </div>
+      </div>
+      {onCounterClick && (
+        <button
+          type="button"
+          onClick={(e) => onCounterClick(e.currentTarget)}
+          disabled={counterDisabled}
+          className="self-start inline-flex min-h-[36px] items-center rounded-[8px] border border-amber-500/50 bg-transparent px-3 text-[13px] font-semibold text-foreground hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Counter to re-check
+        </button>
+      )}
+    </div>
+  )
+}
+
 interface TransferCardProps {
   payload: TransferCardPayload
   cardIndex: number
@@ -92,6 +128,7 @@ interface TransferCardProps {
   weakspotCounterDisabled?: boolean
   weakspotCounterDisabledReason?: string
   isSelected?: boolean
+  newsFlags?: NewsFlag[]
 }
 
 export function TransferCard({
@@ -107,6 +144,7 @@ export function TransferCard({
   weakspotCounterDisabled = false,
   weakspotCounterDisabledReason,
   isSelected = false,
+  newsFlags,
 }: TransferCardProps) {
   const label = totalCards > 1 ? `Transfer ${cardIndex + 1} of ${totalCards}` : 'Transfer'
 
@@ -129,6 +167,10 @@ export function TransferCard({
             No weak spot
           </span>
         </div>
+
+        {newsFlags && newsFlags.length > 0 && (
+          <NewsBanner flags={newsFlags} onCounterClick={onCounterClick} counterDisabled={counterDisabled} />
+        )}
 
         {/* Desktop 2-column / Mobile single column */}
         <div className="flex flex-col gap-3.5 md:grid md:grid-cols-2 md:gap-7">
@@ -221,6 +263,10 @@ export function TransferCard({
           Weak spot · {POS[sell.player.element_type] ?? '?'}
         </span>
       </div>
+
+      {newsFlags && newsFlags.length > 0 && (
+        <NewsBanner flags={newsFlags} onCounterClick={onCounterClick} counterDisabled={counterDisabled} />
+      )}
 
       {/* Why sell — bold title inline with reason */}
       <div className="flex flex-col gap-1">

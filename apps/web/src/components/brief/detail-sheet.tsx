@@ -140,17 +140,30 @@ function CounterChecking({ steps }: { steps: string[] }) {
   )
 }
 
+type RegenState =
+  | { phase: 'idle' }
+  | { phase: 'loading'; steps: string[] }
+  | { phase: 'error'; message: string }
+
 function CounterOutcome({
   outcome,
   response,
   newPick,
+  counterId,
+  counterType,
   onReset,
+  onRegenerate,
 }: {
   outcome: string
   response: string
   newPick: unknown
+  counterId?: string
+  counterType?: string
   onReset: () => void
+  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
 }) {
+  const [regenState, setRegenState] = useState<RegenState>({ phase: 'idle' })
+
   const OUTCOME_LABELS: Record<string, string> = {
     held: 'Agent holds the pick',
     changed_fact: 'Agent updates the pick',
@@ -163,6 +176,63 @@ function CounterOutcome({
   const newPickBuyName = newPickObj?.buyPlayerName as string | undefined
   const newPickReason = newPickObj?.reason as string | undefined
   const isWeakspotChange = outcome === 'changed_fact' && !!newPickBuyName
+
+  const canRegenerate =
+    counterType === 'weakspot' &&
+    !!newPickName &&
+    !!counterId &&
+    (outcome === 'accepted_preference' || outcome === 'changed_fact')
+
+  const handleRegenerate = async () => {
+    if (!counterId) return
+    setRegenState({ phase: 'loading', steps: [] })
+    try {
+      const res = await fetch(`/api/counter/${counterId}/regenerate`, { method: 'POST' })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error('No stream')
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = JSON.parse(line.slice(6)) as {
+            step?: string
+            status?: string
+            payload?: Record<string, unknown>
+            lineupPayload?: Record<string, unknown>
+            captainPayload?: Record<string, unknown>
+            message?: string
+          }
+          if (data.step) {
+            setRegenState(prev =>
+              prev.phase === 'loading'
+                ? { phase: 'loading', steps: [...prev.steps, data.step!] }
+                : prev,
+            )
+          } else if (data.status === 'ready' && data.payload) {
+            onRegenerate(data.payload, data.lineupPayload, data.captainPayload)
+            return
+          } else if (data.status === 'error') {
+            throw new Error(data.message ?? 'Regenerate failed')
+          }
+        }
+      }
+    } catch (err) {
+      setRegenState({
+        phase: 'error',
+        message: err instanceof Error ? err.message : 'Failed',
+      })
+    }
+  }
 
   return (
     <div className="space-y-4 py-2">
@@ -197,7 +267,39 @@ function CounterOutcome({
             )}
           </div>
         )}
+        {regenState.phase === 'error' && (
+          <p className="mt-3 text-[13px] text-muted-foreground border-t border-border pt-3">
+            Regenerate failed: {regenState.message}
+          </p>
+        )}
       </div>
+
+      {canRegenerate && regenState.phase === 'idle' && (
+        <div className="rounded-[10px] border border-border bg-background p-4 space-y-3">
+          <p className="text-[13px] leading-[18px] text-muted-foreground">
+            Regenerate the card with <span className="font-semibold text-foreground">{newPickName}</span> as the sell candidate instead.
+          </p>
+          <button
+            type="button"
+            onClick={handleRegenerate}
+            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[8px] bg-secondary px-5 text-[14px] font-semibold text-foreground hover:bg-secondary/80 transition-colors"
+          >
+            Regenerate card
+          </button>
+        </div>
+      )}
+
+      {regenState.phase === 'loading' && (
+        <div className="rounded-[10px] border border-border bg-background p-4 space-y-2">
+          <p className="text-[13px] text-muted-foreground">Regenerating...</p>
+          {regenState.steps.map((step, i) => (
+            <p key={i} className="flex items-center gap-2 text-[13px] text-foreground">
+              <span className="font-mono text-primary" aria-hidden="true">✓</span>
+              {step}
+            </p>
+          ))}
+        </div>
+      )}
 
       <button
         type="button"
@@ -232,6 +334,7 @@ function CounterTab({
   quickReplies,
   onSubmit,
   onReset,
+  onRegenerate,
   disabled,
   disabledReason,
 }: {
@@ -239,6 +342,7 @@ function CounterTab({
   quickReplies: string[]
   onSubmit: (quickReply: string | null, message: string) => void
   onReset: () => void
+  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   disabled: boolean
   disabledReason?: string
 }) {
@@ -251,7 +355,10 @@ function CounterTab({
         outcome={counterPhase.outcome}
         response={counterPhase.response}
         newPick={counterPhase.newPick}
+        counterId={counterPhase.counterId}
+        counterType={counterPhase.counterType}
         onReset={onReset}
+        onRegenerate={onRegenerate}
       />
     )
   }
@@ -409,6 +516,7 @@ interface PanelContentProps {
   quickReplies: string[]
   onCounterSubmit: (quickReply: string | null, message: string) => void
   onCounterReset: () => void
+  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   counterDisabled: boolean
   counterDisabledReason?: string
   closeButtonClass?: string
@@ -428,6 +536,7 @@ function PanelContent({
   quickReplies,
   onCounterSubmit,
   onCounterReset,
+  onRegenerate,
   counterDisabled,
   counterDisabledReason,
   closeButtonClass = '',
@@ -492,6 +601,7 @@ function PanelContent({
             quickReplies={quickReplies}
             onSubmit={onCounterSubmit}
             onReset={onCounterReset}
+            onRegenerate={onRegenerate}
             disabled={counterDisabled}
             disabledReason={counterDisabledReason}
           />
@@ -525,6 +635,7 @@ export function MobileDetailSheet({
   quickReplies,
   onCounterSubmit,
   onCounterReset,
+  onRegenerate,
   counterDisabled,
   counterDisabledReason,
 }: {
@@ -542,6 +653,7 @@ export function MobileDetailSheet({
   quickReplies: string[]
   onCounterSubmit: (quickReply: string | null, message: string) => void
   onCounterReset: () => void
+  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   counterDisabled: boolean
   counterDisabledReason?: string
 }) {
@@ -571,6 +683,7 @@ export function MobileDetailSheet({
           quickReplies={quickReplies}
           onCounterSubmit={onCounterSubmit}
           onCounterReset={onCounterReset}
+          onRegenerate={onRegenerate}
           counterDisabled={counterDisabled}
           counterDisabledReason={counterDisabledReason}
         />
@@ -595,6 +708,7 @@ export function DesktopDetailPanel({
   quickReplies,
   onCounterSubmit,
   onCounterReset,
+  onRegenerate,
   counterDisabled,
   counterDisabledReason,
 }: {
@@ -611,6 +725,7 @@ export function DesktopDetailPanel({
   quickReplies: string[]
   onCounterSubmit: (quickReply: string | null, message: string) => void
   onCounterReset: () => void
+  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   counterDisabled: boolean
   counterDisabledReason?: string
 }) {
@@ -634,6 +749,7 @@ export function DesktopDetailPanel({
         quickReplies={quickReplies}
         onCounterSubmit={onCounterSubmit}
         onCounterReset={onCounterReset}
+        onRegenerate={onRegenerate}
         counterDisabled={counterDisabled}
         counterDisabledReason={counterDisabledReason}
       />
@@ -657,6 +773,7 @@ interface DetailSheetProps {
   quickReplies: string[]
   onCounterSubmit: (quickReply: string | null, message: string) => void
   onCounterReset: () => void
+  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   counterDisabled: boolean
   counterDisabledReason?: string
 }
@@ -675,6 +792,7 @@ export function DetailSheet({
   quickReplies,
   onCounterSubmit,
   onCounterReset,
+  onRegenerate,
   counterDisabled,
   counterDisabledReason,
 }: DetailSheetProps) {
@@ -707,6 +825,7 @@ export function DetailSheet({
     quickReplies,
     onCounterSubmit,
     onCounterReset,
+    onRegenerate,
     counterDisabled,
     counterDisabledReason,
   }

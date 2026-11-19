@@ -361,8 +361,9 @@ export interface Database {
           id: string
           user_id: string
           gameweek: number
+          kind: 'transfer' | 'captain' | 'chip'
           card_id: string | null
-          label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+          label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred' | 'captain_followed' | 'captain_ignored' | 'chip_followed' | 'chip_ignored'
           risk_tag: 'safe' | 'balanced' | 'bold' | null
           actual_move: unknown | null
           journal_note: string | null
@@ -372,8 +373,9 @@ export interface Database {
           id?: string
           user_id: string
           gameweek: number
+          kind?: 'transfer' | 'captain' | 'chip'
           card_id?: string | null
-          label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+          label: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred' | 'captain_followed' | 'captain_ignored' | 'chip_followed' | 'chip_ignored'
           risk_tag?: 'safe' | 'balanced' | 'bold' | null
           actual_move?: unknown | null
           journal_note?: string | null
@@ -383,8 +385,9 @@ export interface Database {
           id?: string
           user_id?: string
           gameweek?: number
+          kind?: 'transfer' | 'captain' | 'chip'
           card_id?: string | null
-          label?: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred'
+          label?: 'followed' | 'own_move' | 'ignored_rolled' | 'ignored_transferred' | 'captain_followed' | 'captain_ignored' | 'chip_followed' | 'chip_ignored'
           risk_tag?: 'safe' | 'balanced' | 'bold' | null
           actual_move?: unknown | null
           journal_note?: string | null

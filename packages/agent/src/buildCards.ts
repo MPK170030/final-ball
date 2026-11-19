@@ -1,5 +1,8 @@
 import type { BriefResult } from './generateBrief.js'
 import type { CaptainPick } from './generateCaptain.js'
+import type { RankedTransferCard } from './analysis/rank.js'
+import type { PlayerScore } from './analysis/weakspot.js'
+import type { Player } from './fpl/types.js'
 
 export type EnrichMeta = {
   clubs: Map<number, string>
@@ -22,55 +25,80 @@ function withClub<T extends { player: { team: number } }>(
   return name ? { ...obj, clubShortName: name } : obj
 }
 
+export function buildTransferCardPayload(
+  card: RankedTransferCard,
+  whySellContext: PlayerScore[],
+  clubs: Map<number, string>,
+): object {
+  return {
+    save: false,
+    sell: withClub(card.sell, clubs),
+    sellingPrice: card.sellingPrice,
+    topPick: withClub(card.topPick, clubs),
+    topPickReason: card.topPickReason,
+    topPickWhy: card.topPickWhy,
+    topPickRiskTag: card.topPickRiskTag,
+    alternatives: card.alternatives.map(alt => ({
+      ...alt,
+      candidate: withClub(alt.candidate, clubs),
+    })),
+    whySell: card.whySell,
+    swapReason: card.swapReason,
+    replans: card.replans,
+    whySellContext: whySellContext.map(ws => withClub(ws, clubs)),
+  }
+}
+
+export function buildSaveCardPayload(opts: {
+  saveReason: string
+  bestOptionForComparison?: { player: Player; reason: string }
+  whySellContext: PlayerScore[]
+  freeTransfers: number
+  gameweekId: number
+  clubs: Map<number, string>
+}): object {
+  const { saveReason, bestOptionForComparison, whySellContext, freeTransfers, gameweekId, clubs } = opts
+  const sellPlayer = whySellContext[0]
+  return {
+    save: true,
+    reason: saveReason ?? '',
+    bestOption: bestOptionForComparison ? withClub(bestOptionForComparison, clubs) : null,
+    sellPlayer: sellPlayer
+      ? {
+          player: sellPlayer.player,
+          sellingPrice: sellPlayer.player.now_cost,
+          clubShortName: clubs.get(sellPlayer.player.team),
+        }
+      : null,
+    freeTransfersNextGw: Math.min(2, freeTransfers + 1),
+    nextGw: gameweekId + 1,
+  }
+}
+
 export function buildCardRows(result: BriefResult, enrich: EnrichMeta): CardRow[] {
   const { clubs, nextFixtureForTeam, freeTransfers, gameweekId } = enrich
   const rows: CardRow[] = []
   let pos = 1
 
   if (result.save) {
-    const sellPlayer = result.whySellContext[0]
     rows.push({
       type: 'transfer',
       position: pos++,
-      payload: {
-        save: true,
-        reason: result.saveReason ?? '',
-        bestOption: result.bestOptionForComparison
-          ? withClub(result.bestOptionForComparison, clubs)
-          : null,
-        sellPlayer: sellPlayer
-          ? {
-              player: sellPlayer.player,
-              sellingPrice: sellPlayer.player.now_cost,
-              clubShortName: clubs.get(sellPlayer.player.team),
-            }
-          : null,
-        freeTransfersNextGw: Math.min(2, freeTransfers + 1),
-        nextGw: gameweekId + 1,
-      },
+      payload: buildSaveCardPayload({
+        saveReason: result.saveReason ?? '',
+        bestOptionForComparison: result.bestOptionForComparison,
+        whySellContext: result.whySellContext,
+        freeTransfers,
+        gameweekId,
+        clubs,
+      }),
     })
   } else {
     for (const card of result.transfers) {
       rows.push({
         type: 'transfer',
         position: pos++,
-        payload: {
-          save: false,
-          sell: withClub(card.sell, clubs),
-          sellingPrice: card.sellingPrice,
-          topPick: withClub(card.topPick, clubs),
-          topPickReason: card.topPickReason,
-          topPickWhy: card.topPickWhy,
-          topPickRiskTag: card.topPickRiskTag,
-          alternatives: card.alternatives.map(alt => ({
-            ...alt,
-            candidate: withClub(alt.candidate, clubs),
-          })),
-          whySell: card.whySell,
-          swapReason: card.swapReason,
-          replans: card.replans,
-          whySellContext: result.whySellContext.map(ws => withClub(ws, clubs)),
-        },
+        payload: buildTransferCardPayload(card, result.whySellContext, clubs),
       })
     }
   }

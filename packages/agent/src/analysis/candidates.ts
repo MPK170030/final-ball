@@ -419,3 +419,8 @@ export function buildTransferPlan(
 
   return oneTransferPlan(sellCandidates[0], ctx, trace)
 }
+
+/** Build a single-transfer plan for a specific sell candidate (used by counter regenerate). */
+export function buildTransferPlanForSell(sc: PlayerScore, ctx: AgentContext): TransferPlanResult {
+  return oneTransferPlan(sc, ctx, [])
+}

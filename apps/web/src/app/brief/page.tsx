@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { FplClient, MemoryCacheAdapter, getActiveGameweek, getSquadGameweek, isDeadlinePassed } from '@finalball/agent'
 import type { TraceStep } from '@finalball/agent'
 import { BriefClient } from './brief-client'
-import type { BriefData, BriefCard, ReceiptData, ReceiptRowData } from '@/components/brief/types'
+import type { BriefData, BriefCard, NewsFlag, ReceiptData, ReceiptRowData, CounterRecordsSummary } from '@/components/brief/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +16,7 @@ interface FplPageData {
   bankTenths: number
   deadlinePassed: boolean
   fplOk: boolean
+  playerNews: Map<number, { status: string; news: string }>
 }
 
 async function loadFplData(teamId: number): Promise<FplPageData> {
@@ -47,6 +48,10 @@ async function loadFplData(teamId: number): Promise<FplPageData> {
       }
     }
 
+    const playerNews = new Map(
+      bootstrap.elements.map((e) => [e.id, { status: e.status as string, news: e.news }]),
+    )
+
     return {
       gameweek: gw,
       deadlineMs: event ? event.deadline_time_epoch * 1000 : null,
@@ -54,10 +59,45 @@ async function loadFplData(teamId: number): Promise<FplPageData> {
       bankTenths: picks.entry_history.bank,
       deadlinePassed: isDeadlinePassed(bootstrap, gw),
       fplOk: true,
+      playerNews,
     }
   } catch {
-    return { gameweek: 1, deadlineMs: null, freeTransfers: 1, bankTenths: 0, deadlinePassed: false, fplOk: false }
+    return { gameweek: 1, deadlineMs: null, freeTransfers: 1, bankTenths: 0, deadlinePassed: false, fplOk: false, playerNews: new Map() }
   }
+}
+
+function computeNewsFlags(
+  type: string,
+  payload: unknown,
+  playerNews: Map<number, { status: string; news: string }>,
+): NewsFlag[] {
+  const p = payload as Record<string, unknown>
+  const flags: NewsFlag[] = []
+  const seen = new Set<number>()
+
+  const check = (player: { id: number; web_name: string; status?: string; news?: string } | undefined) => {
+    if (!player || seen.has(player.id)) return
+    seen.add(player.id)
+    const cur = playerNews.get(player.id)
+    if (!cur) return
+    const storedNews = player.news ?? ''
+    const storedStatus = player.status ?? 'a'
+    if (cur.news !== storedNews || cur.status !== storedStatus) {
+      flags.push({ playerName: player.web_name, news: cur.news || `Status: ${cur.status}` })
+    }
+  }
+
+  if (type === 'transfer') {
+    if (!p.save) {
+      check((p.topPick as { player: Record<string, unknown> } | undefined)?.player as Parameters<typeof check>[0])
+      check((p.sell as { player: Record<string, unknown> } | undefined)?.player as Parameters<typeof check>[0])
+    }
+  } else if (type === 'captain') {
+    check((p.captain as { player: Record<string, unknown> } | undefined)?.player as Parameters<typeof check>[0])
+    check((p.vc as { player: Record<string, unknown> } | undefined)?.player as Parameters<typeof check>[0])
+  }
+
+  return flags
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -95,8 +135,8 @@ export default async function BriefPage() {
     fplData.deadlineMs !== null &&
     fplData.deadlineMs - Date.now() > 8 * 24 * 60 * 60 * 1000
 
-  // Then load the latest brief + counter usage + recent decisions in parallel
-  const [latestBriefRes, counterUsageRes, decisionsRes] = await Promise.all([
+  // Then load the latest brief + counter usage + recent decisions + counter records in parallel
+  const [latestBriefRes, counterUsageRes, decisionsRes, counterRecordsRes] = await Promise.all([
     supabase
       .from('briefs')
       .select('id, gameweek, version, status, trace, generated_at, change_summary')
@@ -115,17 +155,32 @@ export default async function BriefPage() {
     // Last 5 GWs of decisions
     supabase
       .from('decisions')
-      .select('id, gameweek, label, risk_tag, actual_move')
+      .select('id, gameweek, kind, label, risk_tag, actual_move, journal_note')
       .eq('user_id', user.id)
       .order('gameweek', { ascending: false })
       .limit(20),
+    // Settled counter records for the scorecard "who's right" stat
+    supabase
+      .from('counter_records')
+      .select('verdict')
+      .eq('status', 'settled')
+      .limit(50),
   ])
 
   const briefRow = latestBriefRes.data
-  // When FPL is down, loadFplData falls back to GW 1 which is wrong.
-  // Use the user's latest brief GW instead — it's the best proxy for the real current GW.
   const gameweek = !fplData.fplOk && briefRow ? briefRow.gameweek : fplGameweek
   const countersThisGw = counterUsageRes.data?.count ?? 0
+
+  // Build counter records summary
+  const counterRecordsRaw = counterRecordsRes.data ?? []
+  const counterRecords: CounterRecordsSummary | null = counterRecordsRaw.length > 0
+    ? {
+        total: counterRecordsRaw.length,
+        userRight: counterRecordsRaw.filter((r) => r.verdict === 'user_right').length,
+        agentRight: counterRecordsRaw.filter((r) => r.verdict === 'agent_right').length,
+        even: counterRecordsRaw.filter((r) => r.verdict === 'even').length,
+      }
+    : null
 
   // Build receipts data from the last 5 GWs of decisions
   const rawDecisions = decisionsRes.data ?? []
@@ -153,23 +208,35 @@ export default async function BriefPage() {
   const receiptRows: ReceiptRowData[] = rawDecisions
     .filter((d) => d.gameweek > minGw)
     .map((d) => {
-      const move = d.actual_move as {
-        element_in?: number; element_in_name?: string | null
-        element_out?: number; element_out_name?: string | null
-      } | null
+      const raw = d as unknown as {
+        kind?: string
+        journal_note?: string | null
+        actual_move?: {
+          element_in?: number; element_in_name?: string | null
+          element_out?: number; element_out_name?: string | null
+          chip?: string
+        } | null
+      }
+      const move = raw.actual_move ?? null
       const receipt = receiptsMap.get(d.id) ?? null
+      const rawKind = raw.kind
+      const kind: ReceiptRowData['kind'] =
+        rawKind === 'captain' ? 'captain' : rawKind === 'chip' ? 'chip' : 'transfer'
       return {
         decisionId: d.id,
         gameweek: d.gameweek,
+        kind,
         label: d.label as ReceiptRowData['label'],
         riskTag: (d.risk_tag as ReceiptRowData['riskTag']) ?? null,
         intent: ((intentsMap.get(d.id) ?? 'points') as ReceiptRowData['intent']),
+        note: raw.journal_note ?? null,
         actualMove: move
           ? {
               element_in: move.element_in ?? 0,
               element_in_name: move.element_in_name ?? null,
               element_out: move.element_out ?? 0,
               element_out_name: move.element_out_name ?? null,
+              chip: move.chip,
             }
           : null,
         receipt: receipt
@@ -184,7 +251,7 @@ export default async function BriefPage() {
           : null,
       }
     })
-  const receiptData: ReceiptData = { rows: receiptRows }
+  const receiptData: ReceiptData = { rows: receiptRows, counterRecords }
 
   // Load cards if we have a brief
   let briefData: BriefData | null = null
@@ -201,7 +268,10 @@ export default async function BriefPage() {
       version: briefRow.version,
       generatedAt: briefRow.generated_at ?? new Date().toISOString(),
       trace: (briefRow.trace as TraceStep[]) ?? [],
-      cards: (cardRows ?? []) as BriefCard[],
+      cards: (cardRows ?? []).map((row) => ({
+        ...(row as BriefCard),
+        newsFlags: computeNewsFlags(row.type, row.payload, fplData.playerNews),
+      })),
       changeSummary: (briefRow.change_summary as string | null) ?? null,
     }
   }
@@ -221,6 +291,7 @@ export default async function BriefPage() {
       initial={initial}
       teamName={teamName}
       receiptData={receiptData}
+      emailOptOut={profile.email_opt_out}
     />
   )
 }

@@ -365,7 +365,7 @@ const COUNTER_TOOLS: Anthropic.Tool[] = [
         },
         newPick: {
           type: 'object',
-          description: 'Required when outcome is changed_fact.',
+          description: 'Required when outcome is changed_fact. For weakspot cards with accepted_preference, also set playerName to the next-weakest squad player to sell.',
           properties: {
             playerName: { type: 'string', description: 'Transfer cards: name of the new best buy player. Weakspot cards: name of the new sell candidate from the squad.' },
             buyPlayerName: { type: 'string', description: 'Weakspot cards only: name of the best available buy for the new sell candidate\'s position.' },

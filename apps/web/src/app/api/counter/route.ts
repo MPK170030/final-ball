@@ -234,10 +234,13 @@ export async function POST(req: NextRequest) {
 
       await send({ step: 'Saving...' })
 
-      const newPayload =
-        result.outcome === 'changed_fact' && result.newPick
-          ? { outcome: result.outcome, response: result.response, newPick: result.newPick }
-          : null
+      const shouldPersistNewPick =
+        (result.outcome === 'changed_fact' ||
+          (result.outcome === 'accepted_preference' && counterType === 'weakspot')) &&
+        result.newPick
+      const newPayload = shouldPersistNewPick
+        ? { outcome: result.outcome, response: result.response, newPick: result.newPick }
+        : null
 
       await serviceClient
         .from('counters')
