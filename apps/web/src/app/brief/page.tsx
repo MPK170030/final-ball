@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { FplClient, MemoryCacheAdapter, getActiveGameweek, getSquadGameweek, isDeadlinePassed } from '@finalball/agent'
+import { FplClient, FplError, MemoryCacheAdapter, getActiveGameweek, getSquadGameweek, getPreviousGameweek, isDeadlinePassed } from '@finalball/agent'
 import type { TraceStep } from '@finalball/agent'
 import { BriefClient } from './brief-client'
 import type { BriefData, BriefCard, NewsFlag, ReceiptData, ReceiptRowData, CounterRecordsSummary } from '@/components/brief/types'
@@ -25,11 +25,28 @@ async function loadFplData(teamId: number): Promise<FplPageData> {
     const bootstrap = await client.getBootstrap()
     const gw = getActiveGameweek(bootstrap)
     const squadGw = getSquadGameweek(bootstrap)
-    const [picks, history] = await Promise.all([
+    const event = bootstrap.events.find(e => e.id === gw)
+
+    const [picksResult, historyResult] = await Promise.allSettled([
       client.getEntryPicks(teamId, squadGw),
       client.getEntryHistory(teamId),
     ])
-    const event = bootstrap.events.find(e => e.id === gw)
+
+    // A 404 on picks means the current GW's picks aren't published yet (FPL marks a GW
+    // as is_current before its deadline, but the picks endpoint returns 404 until then)
+    // or the account has never played. Fall back to the previous GW for bank balance.
+    let picks = picksResult.status === 'fulfilled' ? picksResult.value : null
+    if (picksResult.status === 'rejected') {
+      const err = picksResult.reason
+      if (!(err instanceof FplError) || err.status !== 404) throw err
+      const prevGw = getPreviousGameweek(bootstrap)
+      if (prevGw) {
+        try { picks = await client.getEntryPicks(teamId, prevGw) } catch { /* no prior picks */ }
+      }
+    }
+    if (historyResult.status === 'rejected') throw historyResult.reason
+
+    const history = historyResult.value
 
     // Derive free transfers: mirrors deriveFreeTransfers in context.ts
     const chipByEvent = new Map(history.chips.map(c => [c.event, c.name]))
@@ -56,7 +73,7 @@ async function loadFplData(teamId: number): Promise<FplPageData> {
       gameweek: gw,
       deadlineMs: event ? event.deadline_time_epoch * 1000 : null,
       freeTransfers: ft,
-      bankTenths: picks.entry_history.bank,
+      bankTenths: picks?.entry_history.bank ?? 0,
       deadlinePassed: isDeadlinePassed(bootstrap, gw),
       fplOk: true,
       playerNews,

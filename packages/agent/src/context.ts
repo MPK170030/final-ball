@@ -1,6 +1,7 @@
 import type { Bootstrap, Fixture, GameweekEvent, EntryPicks, Player, EntryHistoryItem, EntryChipHistory } from './fpl/types.js'
 import type { FplClient } from './fpl/client.js'
-import { getActiveGameweek, getSquadGameweek } from './fpl/helpers.js'
+import { FplError } from './fpl/client.js'
+import { getActiveGameweek, getSquadGameweek, getPreviousGameweek } from './fpl/helpers.js'
 
 export interface AgentContext {
   bootstrap: Bootstrap
@@ -40,8 +41,18 @@ export async function loadContext(teamId: number, client: FplClient): Promise<Ag
 
   // Picks are fetched from the last played GW (is_current), not the planning GW.
   // When gwId is is_next (deadline passed, planning ahead), is_current is still GW N.
+  // Fall back to the previous GW if the current one returns 404 (GW transition window
+  // or account with no picks yet for the active event).
   const squadGwId = getSquadGameweek(bootstrap)
-  const picks = await client.getEntryPicks(teamId, squadGwId)
+  let picks: EntryPicks
+  try {
+    picks = await client.getEntryPicks(teamId, squadGwId)
+  } catch (err) {
+    if (!(err instanceof FplError) || err.status !== 404) throw err
+    const prevGwId = getPreviousGameweek(bootstrap)
+    if (!prevGwId) throw new Error('Your FPL squad isn\'t available yet — please set up your team on the FPL website first.')
+    picks = await client.getEntryPicks(teamId, prevGwId)
+  }
   const bank = picks.entry_history.bank
   const freeTransfers = deriveFreeTransfers(history.current, history.chips, gwId)
 
