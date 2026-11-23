@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { Logo } from '@/components/landing/logo'
 
 function useSignIn() {
   const [loading, setLoading] = useState(false)
@@ -23,12 +24,19 @@ export function LandingNav() {
   const { loading, signIn } = useSignIn()
 
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 lg:px-8">
-        <span className="text-[17px] font-semibold tracking-[-0.01em] text-foreground sm:text-[19px]">
-          Final Ball
-        </span>
-        <div className="flex items-center gap-5">
+    <header
+      className="sticky top-0 z-10 border-b border-[#2C2C2C]"
+      style={{ background: 'rgba(24,24,24,0.86)', backdropFilter: 'blur(12px)' }}
+    >
+      <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 lg:px-6">
+        <Logo size={28} />
+        <nav className="flex items-center gap-5" aria-label="Site navigation">
+          <a
+            href="#how-works"
+            className="hidden text-[14px] font-medium text-foreground transition-colors hover:text-muted-foreground sm:block"
+          >
+            How it works
+          </a>
           <Link
             href="/sample"
             className="hidden text-[14px] font-medium text-foreground transition-colors hover:text-muted-foreground sm:block"
@@ -42,7 +50,7 @@ export function LandingNav() {
           >
             Sign in
           </button>
-        </div>
+        </nav>
       </div>
     </header>
   )
@@ -64,14 +72,14 @@ export function LandingAuth({ error }: { error?: string }) {
           ) : (
             <GoogleIcon />
           )}
-          Get started
+          Get started free
         </button>
 
         <Link
-          href="/sample"
+          href="/demo"
           className="inline-flex h-12 w-full items-center justify-center rounded border border-border px-6 text-[15px] font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto"
         >
-          See a real brief
+          Try the demo
         </Link>
       </div>
 

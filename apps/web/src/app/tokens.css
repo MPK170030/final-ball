@@ -39,6 +39,7 @@
   --fdr-5: #8F241F;
   --fdr-5-foreground: #FFFFFF;
   --scrim: rgba(24, 24, 24, 0.45);
+  --background-alt: #F5F5F5;
 }
 
 .dark {
@@ -73,4 +74,5 @@
   --fdr-5: #A8322C;
   --fdr-5-foreground: #FFFFFF;
   --scrim: rgba(0, 0, 0, 0.6);
+  --background-alt: #1E1E1E;
 }

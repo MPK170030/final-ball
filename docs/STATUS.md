@@ -1,4 +1,4 @@
-# Status — Thu 19 November 2026
+# Status — Thu 19 November 2026 (eve of launch)
 
 ## Done
 
@@ -101,19 +101,20 @@
 - ~~Scorecard deep-links (US-5.6): "transfer impact" and "followed agent" stats scroll to the receipts list on click.~~ ✅
 - ~~Decision journal (US-5.7): `journal_note` column already present from migration 008; `PATCH /api/receipts/[decisionId]` saves notes with ownership check; inline note editing on each receipt row (click to edit, blur/Enter to save).~~ ✅
 
-### Demo mode (E8)
-- Curated frozen snapshot + "See it on a live team" toggle, using the owner's real team (D1.3, D15.4).
+### Demo mode (E8) — 20 Nov
+- `/sample` page already serves the owner's live brief publicly (US-8.5, US-8.3). ✅ (pre-existing)
+- Remaining: "Try the demo" link on landing page, frozen snapshot route, Demo badge, sign-up CTA from demo.
 
 ### Settings (E7) — ✅ Done
-- Email opt-out toggle in Settings sheet + unsubscribe link in emails. ✅
-- Delete all data with confirmation. ✅
+- Email opt-out toggle in Settings sheet + unsubscribe link in emails (HMAC-signed token). ✅
+- Delete all data with two-step confirmation. ✅
 
-### Daily-refresh completion (D11.7)
-- ~~Receipt detection and settlement.~~ ✅ Done
-- News flagging for stored briefs (feeds the banner above).
+### Daily-refresh completion (D11.7) — ✅ Done
+- ~~Receipt detection and settlement.~~ ✅
+- ~~News flagging~~ — computed live at render (no daily-job change needed). ✅
 
-### Stick-or-diverge check-in (D3.3)
-- Check-in card when last week's preview exists: pre-selected stick/diverge recommendation, one-tap confirm.
+### Stick-or-diverge check-in (D3.3) — deferred post-launch
+- DB type already has `'checkin'` in cards constraint. Deferred: family testers won't have a prior-week preview for several GWs anyway.
 
 ---
 

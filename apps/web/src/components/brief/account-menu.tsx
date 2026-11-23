@@ -30,7 +30,7 @@ export function AccountMenu({ initial, displayName, emailOptOut }: AccountMenuPr
   }
 
   function handleChangeTeam() {
-    router.push('/onboarding')
+    router.push('/onboarding?change=1')
   }
 
   return (

@@ -1,22 +1,28 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { createClient } from '@/lib/supabase/client'
 import { BriefBanner } from '@/components/brief/brief-banner'
 import { TransferCard } from '@/components/brief/transfer-card'
 import { CaptainCard } from '@/components/brief/captain-card'
+import { PitchView } from '@/components/brief/pitch-view'
+import { SnapshotWidget } from '@/components/brief/snapshot-widget'
+import { ChipsLine } from '@/components/brief/chips-line'
+import { StatusStrip } from '@/components/brief/status-strip'
 import { DetailSheet } from '@/components/brief/detail-sheet'
 import { Button } from '@/components/ui/button'
+import { Logo } from '@/components/landing/logo'
 import type {
   BriefCard,
   TransferCardPayload,
   TransferCardPayloadTransfer,
   CaptainCardPayload,
+  LineupCardPayload,
+  ChipCardPayload,
+  PreviewCardPayload,
   DetailState,
 } from '@/components/brief/types'
 import type { TraceStep } from '@finalball/agent'
-import { cn } from '@/lib/utils'
 
 export interface SampleMeta {
   teamName: string
@@ -36,6 +42,7 @@ export interface SampleBriefData {
 
 interface SampleClientProps {
   briefData: SampleBriefData | null
+  isDemo?: boolean
 }
 
 // ── Public header ─────────────────────────────────────────────────────────────
@@ -53,15 +60,22 @@ function PublicHeader() {
   }
 
   return (
-    <header className="border-border flex h-14 items-center justify-between border-b px-4 md:h-16">
-      <span className="text-[17px] font-semibold tracking-[-0.01em] text-foreground md:text-[19px]">Final Ball</span>
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={handleSignIn} disabled={loading} className="h-11">
-          Sign in
-        </Button>
-        <Button size="sm" onClick={handleSignIn} disabled={loading} className="h-11">
-          Get started
-        </Button>
+    <header
+      className="sticky top-0 z-20 border-b border-[#2C2C2C]"
+      style={{ background: 'rgba(24,24,24,0.94)', backdropFilter: 'blur(12px)' }}
+    >
+      <div className="mx-auto max-w-[1200px] px-4 md:px-6">
+        <div className="flex h-14 items-center justify-between gap-3 md:h-16">
+          <Logo size={28} />
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={handleSignIn} disabled={loading} className="h-11">
+              Sign in
+            </Button>
+            <Button size="sm" onClick={handleSignIn} disabled={loading} className="h-11">
+              Get started
+            </Button>
+          </div>
+        </div>
       </div>
     </header>
   )
@@ -105,10 +119,9 @@ function GetStartedPanel() {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SampleClient({ briefData }: SampleClientProps) {
+export function SampleClient({ briefData, isDemo = false }: SampleClientProps) {
   const [detail, setDetail] = useState<DetailState | null>(null)
   const [isMobile, setIsMobile] = useState(true)
-  const reducedMotion = useReducedMotion()
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
@@ -120,7 +133,7 @@ export function SampleClient({ briefData }: SampleClientProps) {
   }, [])
 
   const openDetail = useCallback(
-    (cardId: string, tab: 'why' | 'trace' | 'counter', trigger?: HTMLButtonElement) => {
+    (cardId: string, tab: 'counter' | 'trace', trigger?: HTMLButtonElement) => {
       detailTriggerRef.current = trigger ?? null
       setDetail({ cardId, tab })
     },
@@ -132,182 +145,252 @@ export function SampleClient({ briefData }: SampleClientProps) {
     setTimeout(() => detailTriggerRef.current?.focus(), 0)
   }, [])
 
-  const changeTab = useCallback((tab: 'why' | 'trace' | 'counter') => {
+  const changeTab = useCallback((tab: 'counter' | 'trace') => {
     setDetail(prev => prev ? { ...prev, tab } : null)
   }, [])
 
+  const lineupCards = briefData?.cards.filter(c => c.type === 'lineup') ?? []
   const transferCards = briefData?.cards.filter(c => c.type === 'transfer') ?? []
   const captainCard = briefData?.cards.find(c => c.type === 'captain')
+  const chipCard = briefData?.cards.find(c => c.type === 'chip')
+  const previewCards = briefData?.cards.filter(c => c.type === 'preview') ?? []
   const bankTenths = briefData?.meta.bankTenths ?? 0
   const gameweek = briefData?.gameweek ?? 1
   const version = briefData?.version ?? 1
+  const isDeadlinePassed = briefData?.meta.deadlineMs
+    ? briefData.meta.deadlineMs < Date.now()
+    : false
 
-  const detailTransferPayload = detail?.cardId && briefData
-    ? (briefData.cards.find(c => c.id === detail.cardId && c.type === 'transfer')?.payload as TransferCardPayload | undefined)
+  const detailCard = detail?.cardId && briefData
+    ? briefData.cards.find(c => c.id === detail.cardId)
     : undefined
 
-  const detailCaptainPayload = detail?.cardId && briefData
-    ? (briefData.cards.find(c => c.id === detail.cardId && c.type === 'captain')?.payload as CaptainCardPayload | undefined)
-    : undefined
+  const panelLabel = (() => {
+    if (!detailCard) return ''
+    if (detailCard.type === 'lineup') return 'Your XI'
+    if (detailCard.type === 'transfer') return 'Transfer'
+    if (detailCard.type === 'captain') return 'Captain'
+    return ''
+  })()
+
+  const panelTitle = (() => {
+    if (!detailCard) return ''
+    if (detailCard.type === 'lineup') return 'Your lineup'
+    if (detailCard.type === 'transfer') {
+      const p = detailCard.payload as TransferCardPayload
+      if (p.save) return 'Save your transfer'
+      return (p as TransferCardPayloadTransfer).topPick.player.web_name
+    }
+    if (detailCard.type === 'captain') {
+      const p = detailCard.payload as CaptainCardPayload
+      return p.captain.player.web_name
+    }
+    return ''
+  })()
+
+  const sharedDetailProps = {
+    detail,
+    onClose: closeDetail,
+    onTabChange: changeTab,
+    panelLabel,
+    panelTitle,
+    traceSteps: briefData?.trace ?? [],
+    gameweek,
+    version,
+    counterPhase: { phase: 'idle' as const },
+    quickReplies: [],
+    onCounterSubmit: () => undefined,
+    onCounterReset: () => undefined,
+    onRegenerate: () => undefined,
+    counterDisabled: true,
+    counterDisabledReason: 'Sign in to counter any pick.',
+  }
 
   return (
     <div className="flex min-h-dvh flex-col">
       <PublicHeader />
 
-      {/* Sample brief banner */}
+      {/* Demo/sample info banner */}
       <BriefBanner variant="info">
-        <strong>Sample brief.</strong> This is the owner&apos;s real team this week. It isn&apos;t advice
-        for your team, and visitors can&apos;t counter.
+        {isDemo ? (
+          <>
+            <strong>Demo brief.</strong> Example data to show how the app works — not advice for your
+            team. Visitors can&apos;t counter.
+          </>
+        ) : (
+          <>
+            <strong>Sample brief.</strong> This is the owner&apos;s real team this week. It isn&apos;t
+            advice for your team, and visitors can&apos;t counter.
+          </>
+        )}
       </BriefBanner>
 
-      {/* Main layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Cards area */}
-        <main
-          className={cn(
-            'flex-1 overflow-y-auto px-4 py-6',
-            !isMobile && detail && 'lg:max-w-xl',
-          )}
-        >
-          <div className="mx-auto w-full max-w-lg space-y-6">
-            {briefData ? (
-              <>
-                {/* Page header */}
-                <div className="space-y-1">
-                  <h1 className="text-title text-foreground">{briefData.meta.teamName}</h1>
-                  <p className="text-small text-muted-foreground">
-                    GW{gameweek} · {briefData.meta.freeTransfers} free transfer
-                    {briefData.meta.freeTransfers > 1 ? 's' : ''} ·{' '}
-                    <span className="font-mono">
-                      £{(briefData.meta.bankTenths / 10).toFixed(1)}m
-                    </span>{' '}
-                    bank
-                  </p>
-                  <p className="text-small text-muted-foreground">
-                    Brief v{version} ·{' '}
-                    {new Date(briefData.generatedAt).toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'short',
-                    })}
-                  </p>
-                </div>
-
-                {/* Cards */}
-                <h2 className="sr-only">Weekly suggestions</h2>
-                <AnimatePresence>
-                  <div className="space-y-4">
-                    {transferCards.map((card, i) => {
-                      const payload = card.payload as TransferCardPayload
-                      return (
-                        <motion.div
-                          key={card.id}
-                          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3, delay: i * 0.06 }}
-                        >
-                          <TransferCard
-                            payload={payload}
-                            cardIndex={i}
-                            totalCards={transferCards.length}
-                            bankTenths={bankTenths}
-                            onWhyClick={(t) => openDetail(card.id, 'why', t)}
-                            isSelected={detail?.cardId === card.id}
-                          />
-                        </motion.div>
-                      )
-                    })}
-                    {captainCard && (
-                      <motion.div
-                        key={captainCard.id}
-                        initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: transferCards.length * 0.06 }}
-                      >
-                        <CaptainCard
-                          payload={captainCard.payload as CaptainCardPayload}
-                          onWhyClick={(t) => openDetail(captainCard.id, 'why', t)}
-                          isSelected={detail?.cardId === captainCard.id}
-                        />
-                      </motion.div>
-                    )}
-                  </div>
-                </AnimatePresence>
-
-                {/* CTA */}
-                <GetStartedPanel />
-              </>
-            ) : (
-              <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
-                <p className="text-body-strong text-foreground">No sample brief yet</p>
-                <p className="text-small mt-1 text-muted-foreground">
-                  The owner hasn&apos;t generated this week&apos;s brief yet. Check back soon.
-                </p>
-              </div>
-            )}
+      {/* Status strip */}
+      {briefData && (
+        <div className="md:border-b md:border-[#2C2C2C] md:bg-background-alt">
+          <div className="mx-auto max-w-[1200px] px-4 md:px-6">
+            <StatusStrip
+              gameweek={gameweek}
+              teamName={briefData.meta.teamName}
+              generatedAt={briefData.generatedAt}
+              refreshesThisGw={3}
+              onRefresh={() => undefined}
+              refreshing={false}
+              deadlineMs={briefData.meta.deadlineMs}
+              isDeadlinePassed={isDeadlinePassed}
+              freeTransfers={briefData.meta.freeTransfers}
+              bankTenths={bankTenths}
+              countersLeft={0}
+              counterCap={10}
+            />
           </div>
-        </main>
-
-        {/* Desktop detail panel */}
-        {!isMobile && detail && (
-          <DetailSheet
-            detail={detail}
-            onClose={closeDetail}
-            onTabChange={changeTab}
-            transferPayload={
-              detailTransferPayload && !('save' in detailTransferPayload && detailTransferPayload.save)
-                ? (detailTransferPayload as TransferCardPayloadTransfer)
-                : undefined
-            }
-            captainPayload={detailCaptainPayload}
-            traceSteps={briefData?.trace ?? []}
-            gameweek={gameweek}
-            version={version}
-            isMobile={false}
-            counterPhase={{ phase: 'idle' }}
-            quickReplies={[]}
-            onCounterSubmit={() => undefined}
-            onCounterReset={() => undefined}
-            onRegenerate={() => undefined}
-            counterDisabled={true}
-            counterDisabledReason="Sign in to counter any pick."
-          />
-        )}
-      </div>
-
-      {/* Mobile detail sheet */}
-      {isMobile && (
-        <DetailSheet
-          detail={detail}
-          onClose={closeDetail}
-          onTabChange={changeTab}
-          transferPayload={
-            detailTransferPayload && !('save' in detailTransferPayload && detailTransferPayload.save)
-              ? (detailTransferPayload as TransferCardPayloadTransfer)
-              : undefined
-          }
-          captainPayload={detailCaptainPayload}
-          traceSteps={briefData?.trace ?? []}
-          gameweek={gameweek}
-          version={version}
-          isMobile={true}
-          counterPhase={{ phase: 'idle' }}
-          quickReplies={[]}
-          onCounterSubmit={() => undefined}
-          onCounterReset={() => undefined}
-          onRegenerate={() => undefined}
-          counterDisabled={true}
-          counterDisabledReason="Sign in to counter any pick."
-        />
+        </div>
       )}
 
+      {/* Main */}
+      <main className="flex-1 pt-4 pb-12 md:pt-7 md:pb-16">
+        <div className="mx-auto w-full max-w-[1200px] px-4 md:px-6">
+          {briefData ? (
+            <div className="md:flex md:items-start md:gap-5">
+              {/* Cards column */}
+              <div className="md:flex-[999_1_620px] md:min-w-0">
+                <div className="space-y-4">
+
+                  {/* Snapshot widget */}
+                  <SnapshotWidget
+                    transferPayload={transferCards[0]?.payload as TransferCardPayload | undefined}
+                    captainPayload={captainCard?.payload as CaptainCardPayload | undefined}
+                    lineupPayload={lineupCards[0]?.payload as LineupCardPayload | undefined}
+                    chipPayload={chipCard?.payload as ChipCardPayload | undefined}
+                    onTransferClick={() =>
+                      document.getElementById('transfer-section')?.scrollIntoView({ behavior: 'smooth' })
+                    }
+                    onCaptainClick={() =>
+                      document.getElementById('captain-section')?.scrollIntoView({ behavior: 'smooth' })
+                    }
+                    onLineupClick={() =>
+                      document.getElementById('lineup-section')?.scrollIntoView({ behavior: 'smooth' })
+                    }
+                    onChipClick={() =>
+                      document.getElementById('chip-section')?.scrollIntoView({ behavior: 'smooth' })
+                    }
+                  />
+
+                  <h2 className="sr-only">Weekly suggestions</h2>
+
+                  {/* Lineup / YOUR XI */}
+                  {lineupCards.map((card) => (
+                    <section key={card.id} id="lineup-section">
+                      <PitchView
+                        payload={card.payload as LineupCardPayload}
+                        gameweek={gameweek}
+                        captainId={captainCard ? (captainCard.payload as CaptainCardPayload).captain.player.id : undefined}
+                        vcId={captainCard ? (captainCard.payload as CaptainCardPayload).vc.player.id : undefined}
+                        onTraceClick={(t) => openDetail(card.id, 'trace', t)}
+                        isSelected={detail?.cardId === card.id}
+                      />
+                    </section>
+                  ))}
+
+                  {/* Transfer(s) */}
+                  {transferCards.map((card, i) => {
+                    const payload = card.payload as TransferCardPayload
+                    return (
+                      <section
+                        key={card.id}
+                        id={i === 0 ? 'transfer-section' : `transfer-section-${i}`}
+                      >
+                        <TransferCard
+                          payload={payload}
+                          cardIndex={i}
+                          totalCards={transferCards.length}
+                          onTraceClick={(t) => openDetail(card.id, 'trace', t)}
+                          isSelected={detail?.cardId === card.id}
+                        />
+                      </section>
+                    )
+                  })}
+
+                  {/* Captain */}
+                  {captainCard && (
+                    <section id="captain-section">
+                      <CaptainCard
+                        payload={captainCard.payload as CaptainCardPayload}
+                        onTraceClick={(t) => openDetail(captainCard.id, 'trace', t)}
+                        isSelected={detail?.cardId === captainCard.id}
+                      />
+                    </section>
+                  )}
+
+                  {/* Chips */}
+                  {chipCard && (
+                    <section id="chip-section">
+                      <ChipsLine payload={chipCard.payload as ChipCardPayload} />
+                    </section>
+                  )}
+
+                  {/* Next-week preview */}
+                  {previewCards.map((card) => {
+                    const previewPayload = card.payload as PreviewCardPayload
+                    return (
+                      <p key={card.id} className="px-1 text-[14px] leading-5 text-muted-foreground">
+                        <span className="font-mono text-[12px] uppercase tracking-[0.06em]">
+                          NEXT WEEK ·{' '}
+                        </span>
+                        {previewPayload.text}
+                      </p>
+                    )
+                  })}
+
+                  {/* CTA */}
+                  <GetStartedPanel />
+                </div>
+              </div>
+
+              {/* Desktop detail panel */}
+              {!isMobile && detail && (
+                <DetailSheet {...sharedDetailProps} isMobile={false} />
+              )}
+            </div>
+          ) : (
+            <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
+              <p className="text-body-strong text-foreground">
+                {isDemo ? 'Demo not yet available' : 'No sample brief yet'}
+              </p>
+              <p className="text-small mt-1 text-muted-foreground">
+                {isDemo ? (
+                  <>
+                    The demo hasn&apos;t been published yet. Check back soon or{' '}
+                    <a href="/sample" className="underline underline-offset-2 hover:text-foreground">
+                      see the live sample brief
+                    </a>
+                    .
+                  </>
+                ) : (
+                  "The owner hasn&apos;t generated this week&apos;s brief yet. Check back soon."
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Mobile detail sheet */}
+      {isMobile && <DetailSheet {...sharedDetailProps} isMobile={true} />}
+
       {/* Footer */}
-      <footer className="border-border border-t px-4 py-4 text-center">
-        <p className="text-small text-muted-foreground">
-          Not affiliated with or endorsed by the Premier League or Fantasy Premier League.{' '}
-          <a href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+      <footer className="border-border border-t">
+        <div className="mx-auto w-full max-w-[1200px] px-4 py-5 md:px-6 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-6 md:gap-y-1">
+          <p className="text-[12px] text-muted-foreground md:text-[13px]">
+            Final Ball is not affiliated with the Premier League or Fantasy Premier League.
+          </p>
+          <a
+            href="/privacy"
+            className="text-[13px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
             Privacy
           </a>
-        </p>
+        </div>
       </footer>
     </div>
   )

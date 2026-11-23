@@ -460,11 +460,15 @@ function ConfirmView({ summary, onConfirm, onNotMe, isConfirming, error }: Confi
         <dl className="grid grid-cols-2 gap-3">
           <div>
             <dt className="text-small text-muted-foreground">Overall rank</dt>
-            <dd className="font-mono text-body-strong text-foreground">{summary.overallRank.toLocaleString()}</dd>
+            <dd className="font-mono text-body-strong text-foreground">
+              {summary.overallRank > 0 ? summary.overallRank.toLocaleString() : '—'}
+            </dd>
           </div>
           <div>
             <dt className="text-small text-muted-foreground">Total points</dt>
-            <dd className="font-mono text-body-strong text-foreground">{summary.totalPoints.toLocaleString()}</dd>
+            <dd className="font-mono text-body-strong text-foreground">
+              {summary.totalPoints > 0 ? summary.totalPoints.toLocaleString() : '—'}
+            </dd>
           </div>
           <div>
             <dt className="text-small text-muted-foreground">Team ID</dt>
@@ -551,7 +555,7 @@ function clearOnboardingState() {
   try { sessionStorage.removeItem(ONBOARDING_STORAGE_KEY) } catch {}
 }
 
-export function OnboardingFlow({ countries }: { countries: string[] }) {
+export function OnboardingFlow({ countries, changeMode = false }: { countries: string[]; changeMode?: boolean }) {
   const router = useRouter()
   const [step, setStep] = useState<Step>('find')
   const [country, setCountry] = useState('')
@@ -599,6 +603,10 @@ export function OnboardingFlow({ countries }: { countries: string[] }) {
 
   async function handleCancel() {
     clearOnboardingState()
+    if (changeMode) {
+      router.push('/brief')
+      return
+    }
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/')

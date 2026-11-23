@@ -7,15 +7,12 @@ import { AccountMenu } from '@/components/brief/account-menu'
 import { BriefBanner } from '@/components/brief/brief-banner'
 import { TransferCard } from '@/components/brief/transfer-card'
 import { CaptainCard } from '@/components/brief/captain-card'
-import { ChipCard } from '@/components/brief/chip-card'
-import { PreviewCard } from '@/components/brief/preview-card'
-import { LineupCard } from '@/components/brief/lineup-card'
+import { PitchView } from '@/components/brief/pitch-view'
 import { ReceiptsSection } from '@/components/brief/receipts-section'
-const Countdown = dynamic(
-  () => import('./countdown').then(m => ({ default: m.Countdown })),
-  { ssr: false },
-)
-
+import { StatusStrip } from '@/components/brief/status-strip'
+import { SnapshotWidget } from '@/components/brief/snapshot-widget'
+import { ChipsLine } from '@/components/brief/chips-line'
+import { Logo } from '@/components/landing/logo'
 const DetailSheet = dynamic(
   () => import('@/components/brief/detail-sheet').then(m => ({ default: m.DetailSheet })),
   { ssr: false },
@@ -59,39 +56,8 @@ interface BriefClientProps {
   teamName: string
   receiptData: ReceiptData
   emailOptOut: boolean
+  refreshesThisGw?: number
 }
-
-// ── Risk tag key ──────────────────────────────────────────────────────────────
-
-function RiskTagKey() {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        Risk tags · next 3 GWs
-      </span>
-      <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-        <span className="inline-flex items-center rounded-[5px] border border-foreground/40 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-foreground">
-          Safe
-        </span>
-        high floor
-      </span>
-      <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-        <span className="inline-flex items-center rounded-[5px] bg-secondary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-foreground">
-          Balanced
-        </span>
-        most expected pts
-      </span>
-      <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
-        <span className="inline-flex items-center rounded-[5px] bg-foreground px-1.5 py-0.5 text-[11px] font-semibold leading-none text-background">
-          Bold
-        </span>
-        high ceiling
-      </span>
-    </div>
-  )
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
 
 export function BriefClient({
   initialBrief,
@@ -108,16 +74,18 @@ export function BriefClient({
   teamName,
   receiptData,
   emailOptOut,
+  refreshesThisGw = 0,
 }: BriefClientProps) {
   const brief = initialBrief
   const router = useRouter()
+  const [view, setView] = useState<'thisweek' | 'record'>('thisweek')
   const [detail, setDetail] = useState<DetailState | null>(null)
   const [isMobile, setIsMobile] = useState(true)
   const [counterStates, setCounterStates] = useState<Record<string, CounterPhase>>({})
+  const [counterTraces, setCounterTraces] = useState<Record<string, string[]>>({})
   const [countersUsedThisSession, setCountersUsedThisSession] = useState(0)
   const [genState, setGenState] = useState<GenState>({ phase: 'idle' })
   const [regenPayloads, setRegenPayloads] = useState<Record<string, BriefCard['payload']>>({})
-  // Tracks the button that triggered the detail panel so focus returns on close
   const detailTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   const triggerGenerate = useCallback(async () => {
@@ -167,7 +135,6 @@ export function BriefClient({
     }
   }, [router])
 
-  // Detect desktop vs mobile
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
     setIsMobile(!mq.matches)
@@ -176,7 +143,6 @@ export function BriefClient({
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  // Reset genState after router.refresh() delivers a new brief (ID changes)
   const briefIdRef = useRef(initialBrief?.id ?? null)
   useEffect(() => {
     const newId = initialBrief?.id ?? null
@@ -186,7 +152,6 @@ export function BriefClient({
     }
   }, [initialBrief?.id])
 
-  // Auto-generate on first visit when no brief exists yet
   useEffect(() => {
     if (!initialBrief && !isDeadlinePassed && !isFplUpdating) {
       triggerGenerate()
@@ -201,7 +166,6 @@ export function BriefClient({
     [brief?.cards, regenPayloads],
   )
 
-  // ── Counter state ───────────────────────────────────────────────────────────
   const countersLeft = Math.max(0, COUNTER_CAP - countersThisGw - countersUsedThisSession)
   const canCounter = !isDeadlinePassed && !isFplUpdating && countersLeft > 0
 
@@ -215,11 +179,10 @@ export function BriefClient({
     ? (counterStates[detail.cardId] ?? { phase: 'idle' })
     : { phase: 'idle' }
 
-  // ── Detail handlers ─────────────────────────────────────────────────────────
   const openDetail = useCallback(
-    (cardId: string, tab: 'why' | 'trace' | 'counter', trigger?: HTMLButtonElement, counterType?: 'weakspot') => {
+    (cardId: string, tab: 'counter' | 'trace', trigger?: HTMLButtonElement) => {
       detailTriggerRef.current = trigger ?? null
-      setDetail({ cardId, tab, counterType })
+      setDetail({ cardId, tab })
     },
     [],
   )
@@ -229,11 +192,10 @@ export function BriefClient({
     setTimeout(() => detailTriggerRef.current?.focus(), 0)
   }, [])
 
-  const changeTab = useCallback((tab: 'why' | 'trace' | 'counter') => {
+  const changeTab = useCallback((tab: 'counter' | 'trace') => {
     setDetail(prev => (prev ? { ...prev, tab } : null))
   }, [])
 
-  // ── Counter submit / reset ──────────────────────────────────────────────────
   const submitCounter = useCallback(
     async (quickReply: string | null, message: string) => {
       const cardId = detail?.cardId
@@ -245,7 +207,7 @@ export function BriefClient({
         const res = await fetch('/api/counter', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cardId, quickReply, message, counterType: detail?.counterType }),
+          body: JSON.stringify({ cardId, quickReply, message }),
         })
 
         if (!res.ok) {
@@ -258,6 +220,7 @@ export function BriefClient({
 
         const decoder = new TextDecoder()
         let buffer = ''
+        let capturedSteps: string[] = []
 
         while (true) {
           const { done, value } = await reader.read()
@@ -280,12 +243,14 @@ export function BriefClient({
             }
 
             if (data.step) {
+              capturedSteps = [...capturedSteps, data.step!]
               setCounterStates(prev => {
                 const cur = prev[cardId]
                 if (!cur || cur.phase !== 'checking') return prev
                 return { ...prev, [cardId]: { phase: 'checking', steps: [...cur.steps, data.step!] } }
               })
             } else if (data.status === 'ready') {
+              setCounterTraces(prev => ({ ...prev, [cardId]: capturedSteps }))
               setCounterStates(prev => ({
                 ...prev,
                 [cardId]: {
@@ -294,7 +259,6 @@ export function BriefClient({
                   response: data.response!,
                   newPick: data.newPick ?? null,
                   counterId: data.counterId ?? '',
-                  counterType: detail?.counterType,
                 },
               }))
               setCountersUsedThisSession(prev => prev + 1)
@@ -309,7 +273,7 @@ export function BriefClient({
         setCounterStates(prev => ({ ...prev, [cardId]: { phase: 'error', message: msg } }))
       }
     },
-    [detail?.cardId, detail?.counterType],
+    [detail?.cardId],
   )
 
   const resetCounter = useCallback(() => {
@@ -339,23 +303,6 @@ export function BriefClient({
     closeDetail()
   }, [detail?.cardId, brief?.cards, closeDetail])
 
-  // ── Transfer card lookup for detail panel ───────────────────────────────────
-  const detailTransferPayload = useMemo<TransferCardPayloadTransfer | undefined>(() => {
-    if (!detail?.cardId) return undefined
-    const activeCard = activeCards.find(c => c.id === detail.cardId && c.type === 'transfer')
-    if (!activeCard) return undefined
-    const payload = activeCard.payload as TransferCardPayload
-    if (payload.save) return undefined
-    return payload as TransferCardPayloadTransfer
-  }, [detail?.cardId, activeCards])
-
-  const detailCaptainPayload = useMemo<CaptainCardPayload | undefined>(() => {
-    if (!detail?.cardId) return undefined
-    const activeCard = activeCards.find(c => c.id === detail.cardId && c.type === 'captain')
-    return activeCard ? (activeCard.payload as CaptainCardPayload) : undefined
-  }, [detail?.cardId, activeCards])
-
-  // ── Quick replies for the active counter tab ────────────────────────────────
   const quickReplies = useMemo<string[]>(() => {
     if (!detail?.cardId) return []
     const card = activeCards.find(c => c.id === detail.cardId)
@@ -375,14 +322,6 @@ export function BriefClient({
       if (p.save) {
         return ['I want to make a transfer', "The savings don't feel worth it", 'What would you buy?']
       }
-      if (detail?.counterType === 'weakspot') {
-        const secondWeakest = p.whySellContext[1]?.player.web_name
-        return [
-          `${p.sell.player.web_name} is performing fine`,
-          secondWeakest ? `Why not sell ${secondWeakest}?` : 'Who else should I sell?',
-          'I need them for cover',
-        ]
-      }
       return [
         `Keep ${p.sell.player.web_name}`,
         `Why not ${p.topPick.player.web_name}?`,
@@ -392,7 +331,7 @@ export function BriefClient({
     }
 
     return []
-  }, [detail?.cardId, detail?.counterType, activeCards])
+  }, [detail?.cardId, activeCards])
 
   const transferCards = activeCards.filter((c: BriefCard) => c.type === 'transfer')
   const captainCard = activeCards.find((c: BriefCard) => c.type === 'captain')
@@ -400,16 +339,40 @@ export function BriefClient({
   const lineupCards = activeCards.filter((c: BriefCard) => c.type === 'lineup')
   const previewCards = activeCards.filter((c: BriefCard) => c.type === 'preview')
 
+  const { panelLabel, panelTitle } = useMemo(() => {
+    if (!detail?.cardId) return { panelLabel: '', panelTitle: '' }
+    const card = activeCards.find(c => c.id === detail.cardId)
+    if (!card) return { panelLabel: '', panelTitle: '' }
+
+    if (card.type === 'transfer') {
+      const payload = card.payload as TransferCardPayload
+      const tCards = activeCards.filter(c => c.type === 'transfer')
+      const idx = tCards.findIndex(c => c.id === card.id)
+      const label = tCards.length > 1 ? `Transfer ${idx + 1} of ${tCards.length}` : 'Transfer'
+      if (payload.save) return { panelLabel: label, panelTitle: 'Save your transfer' }
+      return { panelLabel: label, panelTitle: (payload as TransferCardPayloadTransfer).topPick.player.web_name }
+    }
+
+    if (card.type === 'captain') {
+      const payload = card.payload as CaptainCardPayload
+      return { panelLabel: 'Captain', panelTitle: payload.captain.player.web_name }
+    }
+
+    if (card.type === 'lineup') {
+      return { panelLabel: 'Your XI', panelTitle: 'Your lineup' }
+    }
+
+    return { panelLabel: '', panelTitle: '' }
+  }, [detail?.cardId, activeCards])
+
   const sharedDetailProps = {
     detail,
     onClose: closeDetail,
     onTabChange: changeTab,
-    transferPayload:
-      detailTransferPayload && !('save' in detailTransferPayload && detailTransferPayload.save)
-        ? (detailTransferPayload as TransferCardPayloadTransfer)
-        : undefined,
-    captainPayload: detailCaptainPayload,
+    panelLabel,
+    panelTitle,
     traceSteps: brief?.trace ?? [],
+    counterTraceSteps: detail?.cardId ? counterTraces[detail.cardId] : undefined,
     gameweek,
     version: brief?.version ?? 1,
     counterPhase: activeCounterPhase,
@@ -419,19 +382,92 @@ export function BriefClient({
     onRegenerate: handleRegenerate,
     counterDisabled: !canCounter || activeCounterPhase.phase === 'checking',
     counterDisabledReason,
+    countersLeft,
   }
 
   return (
     <div className="flex min-h-dvh flex-col">
-      {/* Nav */}
-      <header className="border-border flex h-14 items-center justify-between border-b px-4 md:h-16">
-        <span className="text-[17px] font-semibold tracking-[-0.01em] text-foreground md:text-[19px]">
-          Final Ball
-        </span>
-        <AccountMenu initial={initial} displayName={displayName} emailOptOut={emailOptOut} />
+      {/* App bar */}
+      <header
+        className="sticky top-0 z-20 border-b border-[#2C2C2C]"
+        style={{ background: 'rgba(24,24,24,0.94)', backdropFilter: 'blur(12px)' }}
+      >
+        <div className="mx-auto max-w-[1200px] px-4 pb-[10px] md:px-6 md:pb-0">
+        {/* Logo row */}
+        <div className="flex h-[54px] items-center gap-3 md:h-16">
+          <div className="md:hidden"><Logo size={26} /></div>
+          <div className="hidden md:block"><Logo size={30} /></div>
+
+          {/* Nav — desktop: inline; mobile: second row */}
+          <div className="ml-2 hidden md:flex items-center gap-1 rounded-[10px] bg-[#232323] p-1">
+            <button
+              type="button"
+              onClick={() => setView('thisweek')}
+              className={cn(
+                'inline-flex h-10 items-center rounded-[6px] border-0 px-3.5 text-[14px] font-medium transition-colors',
+                view === 'thisweek'
+                  ? 'bg-[#383838] text-foreground'
+                  : 'bg-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              This week
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('record')}
+              className={cn(
+                'inline-flex h-10 items-center rounded-[6px] border-0 px-3.5 text-[14px] font-medium transition-colors',
+                view === 'record'
+                  ? 'bg-[#383838] text-foreground'
+                  : 'bg-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Record
+            </button>
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Last 5 GWs chip — desktop only */}
+          <span className="hidden md:inline-flex h-9 items-center gap-2 rounded-full border border-border px-3 text-[13px] text-foreground">
+            Last 5 GWs
+            <span className="font-mono text-muted-foreground">pending</span>
+          </span>
+
+          <AccountMenu initial={initial} displayName={displayName} emailOptOut={emailOptOut} />
+        </div>
+
+        {/* Mobile nav row */}
+        <div className="flex md:hidden items-center gap-1 rounded-[10px] bg-[#232323] p-1">
+          <button
+            type="button"
+            onClick={() => setView('thisweek')}
+            className={cn(
+              'flex-1 inline-flex h-10 items-center justify-center rounded-[6px] border-0 text-[14px] font-medium transition-colors',
+              view === 'thisweek'
+                ? 'bg-[#383838] text-foreground'
+                : 'bg-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            This week
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('record')}
+            className={cn(
+              'flex-1 inline-flex h-10 items-center justify-center rounded-[6px] border-0 text-[14px] font-medium transition-colors',
+              view === 'record'
+                ? 'bg-[#383838] text-foreground'
+                : 'bg-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            Record
+          </button>
+        </div>
+        </div>
       </header>
 
-      {/* Banners */}
+      {/* System banners */}
       {isFplUpdating && (
         <BriefBanner variant="info">
           <strong>FPL is updating.</strong>{' '}
@@ -453,132 +489,118 @@ export function BriefClient({
         </BriefBanner>
       )}
 
+      {/* Status strip — full-width on desktop */}
+      {view === 'thisweek' && brief && (
+        <div className="md:border-b md:border-[#2C2C2C] md:bg-background-alt">
+          <div className="mx-auto max-w-[1200px] px-4 md:px-6">
+            <StatusStrip
+              gameweek={gameweek}
+              teamName={teamName}
+              generatedAt={brief.generatedAt}
+              refreshesThisGw={refreshesThisGw}
+              onRefresh={triggerGenerate}
+              refreshing={genState.phase === 'generating'}
+              deadlineMs={deadlineMs}
+              isDeadlinePassed={isDeadlinePassed}
+              freeTransfers={freeTransfers}
+              bankTenths={bankTenths}
+              countersLeft={countersLeft}
+              counterCap={COUNTER_CAP}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Main */}
-      <main className="flex-1 px-4 pt-6 pb-12 md:px-8 md:pt-8">
-        <div className="mx-auto w-full max-w-[1200px]">
-          <div className="md:flex md:items-start md:gap-5">
+      <main className="flex-1 pt-4 pb-12 md:pt-7 md:pb-16">
+        <div className="mx-auto w-full max-w-[1200px] px-4 md:px-6">
 
-            {/* Cards column */}
-            <div className="md:flex-[999_1_560px] md:min-w-0">
-              <div className="space-y-4">
+          {view === 'record' ? (
+            <div className="space-y-4 pt-2">
+              <div className="flex flex-col gap-1">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  Record
+                </p>
+                <p className="text-[22px] font-semibold tracking-[-0.01em] text-foreground">
+                  Your decision history
+                </p>
+              </div>
+              <ReceiptsSection data={receiptData} />
+            </div>
+          ) : (
+            <div className="md:flex md:items-start md:gap-5">
+              {/* Cards column */}
+              <div className="md:flex-[999_1_620px] md:min-w-0">
+                <div className="space-y-4">
 
-                {/* Gameweek header */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-col gap-1.5 min-w-0">
-                    <p className="text-[12px] font-semibold leading-4 tracking-[0.06em] uppercase text-muted-foreground">
-                      Gameweek {gameweek}
-                    </p>
-                    <h1 className="text-[26px] leading-8 font-semibold tracking-[-0.01em] text-foreground md:text-[34px] md:leading-10 md:tracking-[-0.015em]">
-                      Your brief
-                    </h1>
-                    {/* Mobile: team name on own line */}
-                    <p className="text-[14px] text-foreground md:hidden">{teamName}</p>
-                    {/* Meta row */}
-                    <div className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1 text-[13px] text-muted-foreground">
-                      {/* Desktop: team name inline */}
-                      <span className="hidden md:inline text-[14px] text-foreground">{teamName}</span>
-                      {isDeadlinePassed ? (
-                        <span className="font-mono font-medium">Deadline passed</span>
-                      ) : deadlineMs ? (
-                        <span className="inline-flex items-baseline gap-1 shrink-0">
-                          Deadline in <Countdown deadlineMs={deadlineMs} />
-                        </span>
-                      ) : null}
-                      <span className="shrink-0">
-                        {freeTransfers} free transfer{freeTransfers > 1 ? 's' : ''} ·{' '}
-                        <span className="font-mono">£{(bankTenths / 10).toFixed(1)}m</span> in the bank
-                      </span>
-                      {brief?.generatedAt && (
-                        <span className="shrink-0 text-muted-foreground">
-                          Generated{' '}
-                          {new Date(brief.generatedAt).toLocaleDateString('en-GB', {
-                            day: 'numeric',
-                            month: 'short',
-                          })}
-                          ,{' '}
-                          {new Date(brief.generatedAt).toLocaleTimeString('en-GB', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      )}
-                    </div>
-                    {/* Counters left — mobile */}
-                    <p className="text-[13px] text-muted-foreground md:hidden">
-                      <span className="font-mono tabular-nums">{countersLeft} of {COUNTER_CAP}</span>
-                      {' '}counters left this GW
-                    </p>
-                  </div>
-
-                  {/* Counters left — desktop */}
-                  <div className="hidden md:flex shrink-0 items-center gap-2 rounded-[8px] border border-border px-3 py-2">
-                    <span className="font-mono text-[13px] tabular-nums text-foreground">
-                      {countersLeft} of {COUNTER_CAP}
-                    </span>
-                    <span className="text-[13px] text-muted-foreground">counters left this GW</span>
-                  </div>
-                </div>
-
-                {/* Refresh brief — available any time before deadline */}
-                {brief && !isDeadlinePassed && (
-                  <div className="flex flex-wrap items-center gap-3">
-                    {genState.phase === 'idle' && (
+                  {/* genState feedback (no_change / error) */}
+                  {genState.phase === 'no_change' && (
+                    <BriefBanner variant="info">
+                      Brief is up to date — nothing changed since last generation.
+                    </BriefBanner>
+                  )}
+                  {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
+                    <BriefBanner variant="warning">
+                      {genState.phase === 'fpl_updating'
+                        ? 'FPL is updating — try again shortly.'
+                        : (genState as { phase: 'error'; message: string }).message}
                       <button
                         type="button"
                         onClick={triggerGenerate}
-                        className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+                        className="ml-3 font-semibold underline underline-offset-2 hover:no-underline"
                       >
-                        Refresh brief
+                        Retry
                       </button>
-                    )}
-                    {genState.phase === 'generating' && (
-                      <span className="text-[13px] text-muted-foreground">Refreshing your brief…</span>
-                    )}
-                    {genState.phase === 'no_change' && (
-                      <>
-                        <span className="text-[13px] text-muted-foreground">Brief is up to date — nothing changed since last generation.</span>
-                        <button
-                          type="button"
-                          onClick={triggerGenerate}
-                          className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
-                        >
-                          Refresh brief
-                        </button>
-                      </>
-                    )}
-                    {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
-                      <>
-                        <span className="text-[13px] text-muted-foreground">
-                          {genState.phase === 'fpl_updating'
-                            ? 'FPL is updating — try again shortly.'
-                            : genState.message}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={triggerGenerate}
-                          className="inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-4 py-2 text-[13px] font-medium text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
-                        >
-                          Retry
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
+                    </BriefBanner>
+                  )}
 
-                {/* Risk tag key */}
-                <RiskTagKey />
+                  {brief ? (
+                    <div className="space-y-4">
+                      {/* Snapshot widget */}
+                      <SnapshotWidget
+                        transferPayload={transferCards[0]?.payload as TransferCardPayload | undefined}
+                        captainPayload={captainCard?.payload as CaptainCardPayload | undefined}
+                        lineupPayload={lineupCards[0]?.payload as LineupCardPayload | undefined}
+                        chipPayload={chipCard?.payload as ChipCardPayload | undefined}
+                        onTransferClick={() =>
+                          document.getElementById('transfer-section')?.scrollIntoView({ behavior: 'smooth' })
+                        }
+                        onCaptainClick={() =>
+                          document.getElementById('captain-section')?.scrollIntoView({ behavior: 'smooth' })
+                        }
+                        onLineupClick={() =>
+                          document.getElementById('lineup-section')?.scrollIntoView({ behavior: 'smooth' })
+                        }
+                        onChipClick={() =>
+                          document.getElementById('chip-section')?.scrollIntoView({ behavior: 'smooth' })
+                        }
+                      />
 
-                {/* Content */}
-                <h2 className="sr-only">Weekly suggestions</h2>
-                {brief ? (
-                  <div className="space-y-4">
+                      <h2 className="sr-only">Weekly suggestions</h2>
+
+                      {/* Pitch view */}
+                      {lineupCards.map((card) => (
+                        <PitchView
+                          key={card.id}
+                          payload={card.payload as LineupCardPayload}
+                          gameweek={gameweek}
+                          captainId={captainCard ? (captainCard.payload as CaptainCardPayload).captain.player.id : undefined}
+                          vcId={captainCard ? (captainCard.payload as CaptainCardPayload).vc.player.id : undefined}
+                          onTraceClick={(t) => openDetail(card.id, 'trace', t)}
+                          onCounterClick={captainCard ? (t) => openDetail(captainCard.id, 'counter', t) : undefined}
+                          isSelected={detail?.cardId === card.id}
+                        />
+                      ))}
+
+                      {/* Transfer(s) */}
                       {transferCards.map((card, i) => {
                         const payload = card.payload as TransferCardPayload
                         const cardPhase = counterStates[card.id] ?? { phase: 'idle' }
                         const cardCounterDisabled = !canCounter || cardPhase.phase === 'checking'
                         return (
-                          <div
+                          <section
                             key={card.id}
+                            id={i === 0 ? 'transfer-section' : `transfer-section-${i}`}
                             className={i > 0 ? 'brief-card-anim' : undefined}
                             style={i > 0 ? { animationDelay: `${i * 60}ms` } : undefined}
                           >
@@ -586,233 +608,87 @@ export function BriefClient({
                               payload={payload}
                               cardIndex={i}
                               totalCards={transferCards.length}
-                              bankTenths={bankTenths}
-                              onWhyClick={(t) => openDetail(card.id, 'why', t)}
                               onCounterClick={(t) => openDetail(card.id, 'counter', t)}
                               counterDisabled={cardCounterDisabled}
                               counterDisabledReason={counterDisabledReason}
-                              onWeakspotCounterClick={(t) => openDetail(card.id, 'counter', t, 'weakspot')}
-                              weakspotCounterDisabled={cardCounterDisabled}
-                              weakspotCounterDisabledReason={counterDisabledReason}
+                              onTraceClick={(t) => openDetail(card.id, 'trace', t)}
                               isSelected={detail?.cardId === card.id}
                               newsFlags={card.newsFlags}
                             />
-                          </div>
+                          </section>
                         )
                       })}
-                      {captainCard && (
-                        <div
-                          className="brief-card-anim"
-                          style={{ animationDelay: `${transferCards.length * 60}ms` }}
-                        >
-                          {(() => {
-                            const cardPhase = counterStates[captainCard.id] ?? { phase: 'idle' }
-                            const cardCounterDisabled = !canCounter || cardPhase.phase === 'checking'
-                            return (
-                              <CaptainCard
-                                payload={captainCard.payload as CaptainCardPayload}
-                                onWhyClick={(t) => openDetail(captainCard.id, 'why', t)}
-                                onCounterClick={(t) => openDetail(captainCard.id, 'counter', t)}
-                                counterDisabled={cardCounterDisabled}
-                                counterDisabledReason={counterDisabledReason}
-                                isSelected={detail?.cardId === captainCard.id}
-                                newsFlags={captainCard.newsFlags}
-                              />
-                            )
-                          })()}
-                        </div>
-                      )}
-                      {/* Chip card */}
-                      {chipCard && (
-                        <div
-                          className="brief-card-anim"
-                          style={{ animationDelay: `${(transferCards.length + 1) * 60}ms` }}
-                        >
-                          <ChipCard payload={chipCard.payload as ChipCardPayload} />
-                        </div>
-                      )}
-                      {/* Lineup cards */}
-                      {lineupCards.map((card, i) => (
-                        <div
-                          key={card.id}
-                          className="brief-card-anim"
-                          style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + i) * 60}ms` }}
-                        >
-                          <LineupCard payload={card.payload as LineupCardPayload} />
-                        </div>
-                      ))}
-                      {/* Preview cards */}
-                      {previewCards.map((card, i) => (
-                        <div
-                          key={card.id}
-                          className="brief-card-anim"
-                          style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + lineupCards.length + i) * 60}ms` }}
-                        >
-                          <PreviewCard payload={card.payload as PreviewCardPayload} />
-                        </div>
-                      ))}
-                      {/* How the agent decided */}
-                      {(captainCard ?? transferCards[0]) && (() => {
-                        const traceCardId = (captainCard ?? transferCards[0])!.id
-                        const stepCount = brief.trace.length
-                        const replanCount = brief.trace.filter(s => s.replan).length
-                        const mobileSubtitle = replanCount > 0
-                          ? `${stepCount} steps · ${replanCount} replan${replanCount > 1 ? 's' : ''}`
-                          : `${stepCount} steps`
-                        const desktopSubtitle = `${mobileSubtitle} · the full trace for this brief`
+
+                      {/* Captain */}
+                      {captainCard && (() => {
+                        const cardPhase = counterStates[captainCard.id] ?? { phase: 'idle' }
+                        const cardCounterDisabled = !canCounter || cardPhase.phase === 'checking'
                         return (
-                          <div
+                          <section
+                            id="captain-section"
                             className="brief-card-anim"
-                            style={{ animationDelay: `${(transferCards.length + 1 + (chipCard ? 1 : 0) + lineupCards.length + previewCards.length) * 60}ms` }}
+                            style={{ animationDelay: `${transferCards.length * 60}ms` }}
                           >
-                            <button
-                              type="button"
-                              onClick={(e) => openDetail(traceCardId, 'trace', e.currentTarget)}
-                              className="w-full text-left border border-border rounded-[12px] md:rounded-[14px] px-4 py-3 md:px-5 md:py-4 flex items-center justify-between gap-4 min-h-16 hover:bg-secondary/30 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
-                            >
-                              <div className="flex flex-col gap-0.5">
-                                <p className="text-[15px] font-semibold text-foreground">
-                                  How the agent decided
-                                </p>
-                                <p className="text-[13px] text-muted-foreground md:hidden">
-                                  {mobileSubtitle}
-                                </p>
-                                <p className="hidden text-[13px] text-muted-foreground md:block">
-                                  {desktopSubtitle}
-                                </p>
-                              </div>
-                              <span
-                                className="text-muted-foreground text-[18px] leading-none shrink-0"
-                                aria-hidden="true"
-                              >
-                                →
-                              </span>
-                            </button>
-                          </div>
+                            <CaptainCard
+                              payload={captainCard.payload as CaptainCardPayload}
+                              onCounterClick={(t) => openDetail(captainCard.id, 'counter', t)}
+                              counterDisabled={cardCounterDisabled}
+                              counterDisabledReason={counterDisabledReason}
+                              onTraceClick={(t) => openDetail(captainCard.id, 'trace', t)}
+                              isSelected={detail?.cardId === captainCard.id}
+                              newsFlags={captainCard.newsFlags}
+                            />
+                          </section>
                         )
                       })()}
-                      {/* Receipts section */}
-                      <div className="pt-4">
-                        <ReceiptsSection data={receiptData} />
-                      </div>
+
+                      {/* Chips line */}
+                      {chipCard && (() => {
+                        const chipPayload = chipCard.payload as ChipCardPayload
+                        return (
+                          <section
+                            id="chip-section"
+                            className="brief-card-anim"
+                            style={{ animationDelay: `${(transferCards.length + 1) * 60}ms` }}
+                          >
+                            <ChipsLine payload={chipPayload} />
+                          </section>
+                        )
+                      })()}
+
+                      {/* Next-week preview line */}
+                      {previewCards.map((card) => {
+                        const previewPayload = card.payload as PreviewCardPayload
+                        return (
+                          <p key={card.id} className="px-1 text-[14px] leading-5 text-muted-foreground">
+                            <span className="font-mono text-[12px] uppercase tracking-[0.06em]">
+                              NEXT WEEK ·{' '}
+                            </span>
+                            {previewPayload.text}
+                          </p>
+                        )
+                      })}
                     </div>
-                ) : (
-                  <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
-                    {isEarlyPlanning ? (
-                      <>
-                        {genState.phase === 'idle' && (
-                          <>
-                            <p className="text-body-strong text-foreground">No planning brief yet for GW {gameweek}</p>
-                            <p className="text-small mt-1 text-muted-foreground">
-                              Explore your options early — but wait until closer to the deadline to make your actual transfer.
-                            </p>
-                            <button
-                              type="button"
-                              onClick={triggerGenerate}
-                              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
-                            >
-                              Generate planning brief
-                            </button>
-                          </>
-                        )}
-                        {genState.phase === 'generating' && (
-                          <>
-                            <p className="text-body-strong text-foreground">Generating your planning brief…</p>
-                            {genState.steps.length > 0 && (
-                              <ul className="mt-2 space-y-0.5">
-                                {genState.steps.map((s, i) => (
-                                  <li key={i} className="text-small text-muted-foreground">{s}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </>
-                        )}
-                        {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
-                          <>
-                            <p className="text-body-strong text-foreground">
-                              {genState.phase === 'fpl_updating' ? 'FPL is updating' : 'Something went wrong'}
-                            </p>
-                            <p className="text-small mt-1 text-muted-foreground">
-                              {genState.phase === 'fpl_updating'
-                                ? 'Try again in a few minutes.'
-                                : genState.message}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={triggerGenerate}
-                              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
-                            >
-                              Try again
-                            </button>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {genState.phase === 'idle' && (
-                          <>
-                            <p className="text-body-strong text-foreground">No brief yet for GW {gameweek}</p>
-                            <p className="text-small mt-1 text-muted-foreground">
-                              {isFplUpdating
-                                ? "FPL is updating — reload once it's back to generate your brief."
-                                : 'Your brief will arrive on schedule before the deadline.'}
-                            </p>
-                            {isFplUpdating && (
-                              <button
-                                type="button"
-                                onClick={() => router.refresh()}
-                                className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-5 py-2.5 text-[14px] font-semibold text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
-                              >
-                                Reload
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {genState.phase === 'generating' && (
-                          <>
-                            <p className="text-body-strong text-foreground">Generating your brief…</p>
-                            {genState.steps.length > 0 && (
-                              <ul className="mt-2 space-y-0.5">
-                                {genState.steps.map((s, i) => (
-                                  <li key={i} className="text-small text-muted-foreground">{s}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </>
-                        )}
-                        {(genState.phase === 'error' || genState.phase === 'fpl_updating') && (
-                          <>
-                            <p className="text-body-strong text-foreground">
-                              {genState.phase === 'fpl_updating' ? 'FPL is updating' : 'Something went wrong'}
-                            </p>
-                            <p className="text-small mt-1 text-muted-foreground">
-                              {genState.phase === 'fpl_updating'
-                                ? 'Try again in a few minutes.'
-                                : genState.message}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={triggerGenerate}
-                              className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
-                            >
-                              Try again
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
+                  ) : (
+                    <NoBriefState
+                      gameweek={gameweek}
+                      genState={genState}
+                      isEarlyPlanning={isEarlyPlanning}
+                      isFplUpdating={isFplUpdating}
+                      onGenerate={triggerGenerate}
+                      onReload={() => router.refresh()}
+                    />
+                  )}
 
+                </div>
               </div>
+
+              {/* Desktop detail panel */}
+              {!isMobile && (
+                <DetailSheet {...sharedDetailProps} isMobile={false} />
+              )}
             </div>
-
-            {/* Desktop detail panel — in-flow beside cards column */}
-            {!isMobile && detail && (
-              <DetailSheet {...sharedDetailProps} isMobile={false} />
-            )}
-
-          </div>
+          )}
         </div>
       </main>
 
@@ -820,8 +696,8 @@ export function BriefClient({
       {isMobile && <DetailSheet {...sharedDetailProps} isMobile={true} />}
 
       {/* Footer */}
-      <footer className="border-border border-t px-4 py-5 md:px-8">
-        <div className="mx-auto w-full max-w-[1200px] flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-6 md:gap-y-1">
+      <footer className="border-border border-t">
+        <div className="mx-auto w-full max-w-[1200px] px-4 py-5 md:px-6 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-6 md:gap-y-1">
           <span className="font-mono text-[12px] text-muted-foreground">v0.1 · MVP in progress</span>
           <p className="text-[12px] text-muted-foreground md:text-[13px]">
             Final Ball is not affiliated with the Premier League or Fantasy Premier League.
@@ -836,6 +712,102 @@ export function BriefClient({
           </a>
         </div>
       </footer>
+    </div>
+  )
+}
+
+// ── Empty state component ─────────────────────────────────────────────────────
+
+function NoBriefState({
+  gameweek,
+  genState,
+  isEarlyPlanning,
+  isFplUpdating,
+  onGenerate,
+  onReload,
+}: {
+  gameweek: number
+  genState: GenState
+  isEarlyPlanning: boolean
+  isFplUpdating: boolean
+  onGenerate: () => void
+  onReload: () => void
+}) {
+  if (genState.phase === 'generating') {
+    return (
+      <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
+        <p className="text-[15px] font-semibold text-foreground">
+          {isEarlyPlanning ? 'Generating your planning brief…' : 'Generating your brief…'}
+        </p>
+        {genState.steps.length > 0 && (
+          <ul className="mt-2 space-y-0.5">
+            {genState.steps.map((s, i) => (
+              <li key={i} className="text-[13px] text-muted-foreground">{s}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
+
+  if (genState.phase === 'error' || genState.phase === 'fpl_updating') {
+    return (
+      <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
+        <p className="text-[15px] font-semibold text-foreground">
+          {genState.phase === 'fpl_updating' ? 'FPL is updating' : 'Something went wrong'}
+        </p>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          {genState.phase === 'fpl_updating'
+            ? 'Try again in a few minutes.'
+            : (genState as { phase: 'error'; message: string }).message}
+        </p>
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+        >
+          Try again
+        </button>
+      </div>
+    )
+  }
+
+  // phase === 'idle' or 'no_change'
+  if (isEarlyPlanning) {
+    return (
+      <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
+        <p className="text-[15px] font-semibold text-foreground">No planning brief yet for GW {gameweek}</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          Explore your options early — but wait until closer to the deadline to make your actual transfer.
+        </p>
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] bg-primary px-5 py-2.5 text-[14px] font-semibold text-background hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+        >
+          Generate planning brief
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-border bg-card rounded-lg border px-6 py-10 text-center">
+      <p className="text-[15px] font-semibold text-foreground">No brief yet for GW {gameweek}</p>
+      <p className="mt-1 text-[13px] text-muted-foreground">
+        {isFplUpdating
+          ? "FPL is updating — reload once it's back to generate your brief."
+          : 'Your brief will arrive on schedule before the deadline.'}
+      </p>
+      {isFplUpdating && (
+        <button
+          type="button"
+          onClick={onReload}
+          className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-[10px] border border-border px-5 py-2.5 text-[14px] font-semibold text-foreground hover:bg-secondary/50 focus-visible:outline-2 focus-visible:outline-ring transition-colors"
+        >
+          Reload
+        </button>
+      )}
     </div>
   )
 }

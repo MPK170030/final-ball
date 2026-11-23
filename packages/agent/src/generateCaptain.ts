@@ -5,6 +5,7 @@ import type { Player } from './fpl/types.js'
 import type { TraceEntry } from './trace.js'
 import type { RiskTag } from './analysis/candidates.js'
 import { getUpcomingGwIds } from './analysis/fixtures.js'
+import { computeLineup } from './analysis/lineup.js'
 
 // ── Output types ──────────────────────────────────────────────────────────────
 
@@ -20,6 +21,8 @@ export interface CaptainPick {
   reason: string
   why: CaptainWhySection
   riskTag: RiskTag
+  /** Current-GW expected points projection (D18.6). ep_next from FPL at brief generation time. */
+  gw_xp?: number
 }
 
 export interface CaptainResult {
@@ -77,7 +80,19 @@ function postTransferStartingPlayers(
     }
   }
 
-  // Starting XI = positions 1–11
+  // Build full 15-player squad in position order, then compute optimal lineup
+  const squad: Player[] = []
+  for (let pos = 1; pos <= 15; pos++) {
+    const id = posToId.get(pos)
+    const player = id !== undefined ? playerById.get(id) : undefined
+    if (player) squad.push(player)
+  }
+
+  if (squad.length === 15) {
+    return computeLineup(squad).starting.map(s => s.player)
+  }
+
+  // Fallback: positions 1-11
   const starting: Player[] = []
   for (let pos = 1; pos <= 11; pos++) {
     const id = posToId.get(pos)
@@ -341,6 +356,7 @@ function deterministicFallback(
       risks: c.player.news || 'None identified',
     },
     riskTag: tag,
+    gw_xp: c.epNext,
   })
   return {
     captain: mkPick(c0, 'Highest expected points', tags[0] ?? 'balanced'),
@@ -490,6 +506,7 @@ export async function generateCaptain(
     reason: output.alternatives[idx]?.reason ?? '',
     why: output.alternatives[idx]?.why ?? { form: '', fixture: '', risks: '' },
     riskTag: tags[idx + 2] ?? 'balanced',
+    gw_xp: c.epNext,
   }))
 
   return {
@@ -498,12 +515,14 @@ export async function generateCaptain(
       reason: output.captain.reason,
       why: output.captain.why,
       riskTag: tags[0] ?? 'balanced',
+      gw_xp: captainCandidate.epNext,
     },
     vc: {
       player: vcCandidate.player,
       reason: output.vc.reason,
       why: output.vc.why,
       riskTag: tags[1] ?? 'balanced',
+      gw_xp: vcCandidate.epNext,
     },
     alternatives,
     trace,

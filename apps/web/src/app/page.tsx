@@ -2,63 +2,29 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { LandingAuth, LandingNav } from './landing-auth'
+import { PitchLines } from '@/components/landing/pitch-lines'
+import { LiveBriefDemo } from '@/components/landing/live-brief-demo'
 
-function BriefPreviewDesktop() {
-  return (
-    <div className="w-full rounded-lg border border-border bg-card p-6" style={{ height: '400px' }}>
-      <div className="flex h-full flex-col gap-3">
-        <p className="text-label uppercase tracking-widest text-muted-foreground">Brief preview</p>
-        <div className="h-4 w-[45%] rounded-sm bg-secondary" />
-        <div className="grid grid-cols-2 gap-3">
-          <div className="h-[150px] rounded border-2 border-border bg-background" />
-          <div className="flex flex-col gap-2">
-            <div className="h-11 rounded-sm bg-secondary" />
-            <div className="h-11 rounded-sm bg-secondary" />
-            <div className="h-11 rounded-sm bg-secondary" />
-          </div>
-        </div>
-        <div className="h-2.5 w-4/5 rounded-sm bg-muted" />
-        <div className="min-h-[90px] flex-1 rounded bg-secondary" />
-      </div>
-    </div>
-  )
-}
-
-function BriefPreviewMobile() {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4" style={{ height: '300px' }}>
-      <div className="flex h-full flex-col gap-2.5">
-        <p className="text-label uppercase tracking-widest text-muted-foreground">Brief preview</p>
-        <div className="h-3.5 w-[60%] rounded-sm bg-secondary" />
-        <div className="h-[90px] w-full rounded border-2 border-border bg-background" />
-        <div className="h-2.5 w-[90%] rounded-sm bg-muted" />
-        <div className="h-2.5 w-[75%] rounded-sm bg-muted" />
-        <div className="h-10 rounded-sm bg-secondary" />
-        <div className="h-10 rounded-sm bg-secondary" />
-      </div>
-    </div>
-  )
-}
+const APP_STATUS = 'v0.1 · MVP in progress'
 
 const steps = [
   {
     n: '1',
     title: 'Link your team',
-    body: 'Enter your country rank and team name. Read-only; nothing changes in FPL.',
-    bodyMobile: 'Enter your country rank and team name. Read-only; nothing changes in FPL.',
+    body: 'Enter your country rank and team name. No IDs, no passwords.',
+    bodyMobile: 'Enter your country rank and team name. No IDs, no passwords.',
   },
   {
     n: '2',
     title: 'Get your brief',
-    body: 'A top transfer pick plus 3 alternatives, or a call to save your transfer. A captain and vice, too.',
-    bodyMobile:
-      'A top transfer pick plus 3 alternatives, or a call to save your transfer. A captain and vice, too.',
+    body: 'A top transfer, 3 ranked alternatives, a captain and a vice.',
+    bodyMobile: 'A top transfer, 3 ranked alternatives, a captain and a vice.',
   },
   {
     n: '3',
     title: 'See how it decided',
-    body: 'Every pick has a reason, and the full agent trace is one click away.',
-    bodyMobile: 'Every pick has a reason, and the full agent trace is one tap away.',
+    body: 'Every pick has a reason and the full trace of tool calls.',
+    bodyMobile: 'Every pick has a reason and the full trace of tool calls.',
   },
 ]
 
@@ -90,56 +56,76 @@ export default async function LandingPage({
       <main className="flex-1">
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        <section className="px-4 pb-6 pt-8 lg:px-8 lg:pb-[56px] lg:pt-[72px]">
-          <div className="mx-auto max-w-[1200px]">
-            <div className="grid grid-cols-1 items-center gap-14 lg:grid-cols-2">
+        <section className="relative overflow-hidden px-4 pb-6 pt-10 lg:px-6 lg:pb-[64px] lg:pt-[80px]">
+          <PitchLines />
+
+          <div className="relative z-10 mx-auto max-w-[1200px]">
+            <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-[2fr_3fr] lg:gap-12">
 
               {/* Left: text content */}
               <div className="flex flex-col gap-5">
                 <div className="inline-flex w-fit rounded-sm border border-border px-2 py-1">
                   <span className="font-mono text-[12px] leading-[16px] text-muted-foreground">
-                    v0.1 · MVP in progress
+                    {APP_STATUS}
                   </span>
                 </div>
 
-                <h1 className="text-display text-foreground lg:text-[52px] lg:leading-[58px] lg:tracking-[-0.025em]">
-                  We create the chance, you finish it.
+                <h1
+                  className="font-bold leading-[0.96] tracking-[-0.04em] text-foreground"
+                  style={{ fontSize: 'clamp(48px, 7vw, 88px)' }}
+                >
+                  We create<br />
+                  the chance.<br />
+                  <span className="text-primary">You finish it.</span>
                 </h1>
 
-                <p className="text-[16px] leading-[24px] text-muted-foreground lg:max-w-[520px] lg:text-[19px] lg:leading-[28px]">
+                <p className="text-[16px] leading-[24px] text-muted-foreground lg:max-w-[480px] lg:text-[18px] lg:leading-[27px]">
                   An AI agent for your Fantasy Premier League team. Each gameweek it suggests a
-                  transfer and a captain, and shows exactly how it got there.
+                  transfer and a captain — and shows exactly how it got there.
                 </p>
 
                 <LandingAuth error={error} />
+
+                <ul className="flex flex-col gap-1.5 text-[13px] text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-1">
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-positive" aria-hidden="true">✓</span>Free
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-positive" aria-hidden="true">✓</span>Read-only: nothing changes in FPL
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-positive" aria-hidden="true">✓</span>Never asks for your FPL password
+                  </li>
+                </ul>
               </div>
 
-              {/* Right: brief preview — desktop only */}
-              <div className="hidden lg:block" aria-hidden="true">
-                <BriefPreviewDesktop />
+              {/* Right: live demo — desktop only */}
+              <div className="hidden lg:block">
+                <LiveBriefDemo />
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── Brief preview — mobile only ─────────────────────────────────── */}
-        <section className="px-4 pb-10 lg:hidden" aria-hidden="true">
+        {/* ── Live demo — mobile only ───────────────────────────────────────── */}
+        <section className="px-4 pb-10 lg:hidden">
           <div className="mx-auto max-w-[1200px]">
-            <BriefPreviewMobile />
+            <LiveBriefDemo />
           </div>
         </section>
 
         {/* ── How it works ──────────────────────────────────────────────────── */}
         <section
+          id="how-works"
           aria-labelledby="how-heading"
-          className="border-t border-border px-4 pb-2 pt-10 lg:bg-card lg:px-8 lg:py-[56px]"
+          className="border-t border-border px-4 pb-2 pt-10 lg:bg-card lg:px-6 lg:py-[56px]"
         >
           <div className="mx-auto flex max-w-[1200px] flex-col gap-5 lg:gap-7">
             <h2
               id="how-heading"
               className="text-[22px] font-semibold leading-[28px] text-foreground lg:text-[28px] lg:leading-[34px]"
             >
-              How it works
+              Three minutes a week. You make the final move.
             </h2>
 
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
@@ -173,7 +159,7 @@ export default async function LandingPage({
         {/* ── Roadmap ───────────────────────────────────────────────────────── */}
         <section
           aria-labelledby="roadmap-heading"
-          className="border-t border-border px-4 pb-2 pt-8 lg:px-8 lg:py-[56px]"
+          className="border-t border-border px-4 pb-2 pt-8 lg:px-6 lg:py-[56px]"
         >
           <div className="mx-auto flex max-w-[1200px] flex-col gap-4 lg:gap-6">
             <h2
@@ -189,18 +175,19 @@ export default async function LandingPage({
                   Now · v0.1
                 </p>
                 <p className="text-[14px] leading-[20px] text-foreground lg:text-[15px] lg:leading-[22px]">
-                  Find your team by country rank · transfer and captain advice · reasons and agent
-                  trace · public sample brief
+                  Find your team by country rank and team name · Transfer and captain picks with
+                  reasons · The full agent trace on every pick · A public sample brief, updated weekly.
                 </p>
               </div>
 
               <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-4 lg:p-6">
                 <p className="text-label uppercase tracking-widest text-muted-foreground">
-                  Next · by ~20 Nov
+                  Next · Full MVP
                 </p>
                 <p className="text-[14px] leading-[20px] text-foreground lg:text-[15px] lg:leading-[22px]">
-                  Weekly email · Refresh · Safe / Balanced / Bold · chip timing · receipts and a
-                  5-gameweek scorecard that check whether the advice worked
+                  Counter a pick, and see who is right when you push back · Safe, Balanced and Bold
+                  tags on every option · Chip timing and expiry alerts · Receipts and a 5-gameweek
+                  scorecard · A weekly email when your brief is ready.
                 </p>
               </div>
             </div>
@@ -210,7 +197,7 @@ export default async function LandingPage({
       </main>
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-border px-4 pb-8 pt-6 lg:px-8 lg:pb-10">
+      <footer className="border-t border-border px-4 pb-8 pt-6 lg:px-6 lg:pb-10">
         <div className="mx-auto flex max-w-[1200px] flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[12px] leading-[18px] text-muted-foreground sm:text-small sm:leading-[20px]">
             Final Ball is not affiliated with the Premier League or Fantasy Premier League.

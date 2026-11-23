@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import NumberFlow from '@number-flow/react'
+import { cn } from '@/lib/utils'
 
 function useCountdown(deadlineMs: number | null) {
   const [remaining, setRemaining] = useState(() =>
@@ -27,29 +28,31 @@ function useCountdown(deadlineMs: number | null) {
   return { days, hours, minutes, seconds, totalMs: remaining }
 }
 
-export function Countdown({ deadlineMs }: { deadlineMs: number | null }) {
+export function Countdown({
+  deadlineMs,
+  className = 'text-muted-foreground',
+}: {
+  deadlineMs: number | null
+  className?: string
+}) {
   const time = useCountdown(deadlineMs)
   if (!time) return null
 
   return (
     // aria-live="off": updating every second would be too noisy for screen readers
-    <div aria-live="off" className="flex items-baseline gap-0.5 font-mono text-number text-muted-foreground tabular-nums">
+    <div aria-live="off" className={cn('flex items-baseline gap-0.5 font-mono text-number tabular-nums', className)}>
       {time.days > 0 && (
         <>
-          <NumberFlow value={time.days} />
+          <NumberFlow value={time.days} className="overflow-hidden" />
           <span>d </span>
         </>
       )}
-      <NumberFlow value={time.hours} format={{ minimumIntegerDigits: time.days > 0 ? 2 : 1 }} />
+      <NumberFlow value={time.hours} format={{ minimumIntegerDigits: 2 }} className="overflow-hidden" />
       <span>h </span>
-      <NumberFlow value={time.minutes} format={{ minimumIntegerDigits: 2 }} />
+      <NumberFlow value={time.minutes} format={{ minimumIntegerDigits: 2 }} className="overflow-hidden" />
       <span>m </span>
-      {time.days === 0 && (
-        <>
-          <NumberFlow value={time.seconds} format={{ minimumIntegerDigits: 2 }} />
-          <span>s</span>
-        </>
-      )}
+      <NumberFlow value={time.seconds} format={{ minimumIntegerDigits: 2 }} className="overflow-hidden" />
+      <span>s</span>
     </div>
   )
 }

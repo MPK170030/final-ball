@@ -96,3 +96,4 @@ export function computeLineup(squad: Player[]): LineupResult {
     hasChanges: swapsIn.length > 0 || swapsOut.length > 0,
   }
 }
+
