@@ -51,6 +51,7 @@ const config: Config = {
         'fdr-5': 'var(--fdr-5)',
         'fdr-5-foreground': 'var(--fdr-5-foreground)',
         scrim: 'var(--scrim)',
+        'background-alt': 'var(--background-alt)',
       },
       borderRadius: {
         sm: '6px',

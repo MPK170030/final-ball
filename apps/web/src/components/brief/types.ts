@@ -84,14 +84,40 @@ export interface LineupSlotPayload {
   isDoubtful: boolean
 }
 
+// ── Pitch-view player (compact shape built by buildCards) ─────────────────────
+
+export interface PitchPlayer {
+  id: number
+  name: string
+  club: string
+  position: 'GK' | 'DEF' | 'MID' | 'FWD'
+  gw_xp: number
+  is_gk: boolean
+}
+
+export interface PitchChanges {
+  /** The player who was sold — always set when a transfer occurred, even if they were on the bench. */
+  sold_player: PitchPlayer | null
+  /** The player who was bought — always set when a transfer occurred, even if they went to bench. */
+  new_player: PitchPlayer | null
+}
+
 export interface LineupCardPayload {
   gameweek: number
   formation: string
+  // Legacy fields (kept for SnapshotWidget compatibility)
   starting: LineupSlotPayload[]
   bench: LineupSlotPayload[]
   swapsIn: Player[]
   swapsOut: Player[]
   hasChanges: boolean
+  // Pitch-view fields — absent in older stored cards
+  xi_after?: PitchPlayer[]
+  bench_after?: PitchPlayer[]
+  xi_now?: PitchPlayer[]
+  bench_now?: PitchPlayer[]
+  changes?: PitchChanges
+  total_xp_after?: number
 }
 
 export interface ChipCardPayload {
@@ -182,6 +208,5 @@ export type CounterPhase =
 /** State for the detail sheet / side panel */
 export interface DetailState {
   cardId: string
-  tab: 'why' | 'trace' | 'counter'
-  counterType?: 'weakspot'
+  tab: 'counter' | 'trace'
 }

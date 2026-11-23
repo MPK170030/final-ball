@@ -50,6 +50,8 @@ export interface BriefResult {
   nextWeekPreview?: string
   /** Recommended starting XI and bench order from the post-transfer squad (D4.5). */
   lineup?: LineupResult
+  /** User's actual FPL picks before the recommended transfer (positions 1–11 starters, 12–15 bench). */
+  actualPicks?: { starters: Player[]; bench: Player[] }
   /** Chip availability, timing advice, and BGW/DGW scan (D5.1, D5.3, D5.5, D5.7). */
   chipAdvice?: ChipAdvice
 }
@@ -583,7 +585,7 @@ Workflow:
 2. Use search_candidates to find replacements at their position within the available budget (selling price + bank).
 3. Use get_player or compare to deep-dive on specific candidates.
 4. Use check_constraints to validate a sell → buy pair before submitting.
-5. For the captain: consider the post-transfer starting XI (positions 1–11). Check fixture difficulty and form.
+5. For the captain: consider the post-transfer starting XI (lineup-optimised, GKs excluded). Default to the highest-projected player unless you have a specific reason to prefer another (e.g. a DGW, a significantly easier fixture, or rotation/injury risk on the top player).
 6. Submit with submit_brief when you have enough information.
 
 Data reference (internal — do NOT use these labels in written output):
@@ -596,7 +598,9 @@ Data reference (internal — do NOT use these labels in written output):
 
 Save threshold: recommend "save" when no candidate improves 3-GW projected pts by at least ${SAVE_THRESHOLD_PTS.toFixed(1)} pts over the sell candidate. Rolling earns an extra free transfer next week, which is often more valuable than a marginal swap.
 
-Captain rule: the captain must be in the post-transfer starting XI (positions 1–11 of the squad). Do not captain a bench player. If you bring in a new player who would start, they are eligible for captaincy.
+Captain rule: the captain must be in the post-transfer lineup-optimised starting XI (GKs excluded from captain consideration). Do not captain a bench player. If you bring in a new player who would start, they are eligible for captaincy.
+
+FIXTURE RULE: The 'next:' field in the squad list shows each player's exact home/away fixture. When writing captain reason or captain.why.fixture, use this verbatim — never write 'home' when the data says 'away' or vice versa.
 
 Writing rules:
 - One sentence per reason. Use real numbers from the data.
@@ -643,8 +647,9 @@ function buildInitialPrompt(weakspots: WeakspotResult, ctx: AgentContext): strin
       .join(' | ')
     const bench = startingIds.has(p.id) ? '' : ' (bench)'
     const news = p.news ? ` | ${p.news}` : ''
+    const fixDisplay = fixtureDisplay(p, ctx)
     lines.push(
-      `${i + 1}. ${p.web_name} | ${pos} | £${(p.now_cost / 10).toFixed(1)}m | 3-GW: ${s.total.toFixed(1)} pts | ${gwLines} | ${avail}${bench}${news}`,
+      `${i + 1}. ${p.web_name} | ${pos} | £${(p.now_cost / 10).toFixed(1)}m | 3-GW: ${s.total.toFixed(1)} pts | ${gwLines} | ${avail}${bench} | next: ${fixDisplay}${news}`,
     )
   }
 
@@ -713,6 +718,15 @@ function applyTransfersToStartingXI(
     if (player) starting.push(player)
   }
   return starting
+}
+
+function getActualPicks(ctx: AgentContext): { starters: Player[]; bench: Player[] } {
+  const byPos = new Map<number, number>(ctx.picks.picks.map(p => [p.position, p.element]))
+  const toPlayer = (pos: number): Player | undefined =>
+    ctx.bootstrap.elements.find(e => e.id === byPos.get(pos))
+  const starters = Array.from({ length: 11 }, (_, i) => toPlayer(i + 1)).filter((p): p is Player => !!p)
+  const bench = Array.from({ length: 4 }, (_, i) => toPlayer(i + 12)).filter((p): p is Player => !!p)
+  return { starters, bench }
 }
 
 // ── Submission resolver ───────────────────────────────────────────────────────
@@ -811,17 +825,24 @@ function resolveSubmission(
     return null
   }
 
-  // 2. Post-transfer starting XI for captain validation
-  const startingXI =
+  // 2. Post-transfer squad, lineup-optimised XI, and epNext map for captain validation
+  const postTransferSquad =
     transfers.length > 0
-      ? applyTransfersToStartingXI(
+      ? applyTransfersToFullSquad(
           transfers.map(t => ({ sellId: t.sell.player.id, buyId: t.topPick.player.id, buyPlayer: t.topPick.player })),
           ctx,
         )
-      : ctx.picks.picks
-          .filter(p => p.position <= 11)
-          .map(p => ctx.bootstrap.elements.find(e => e.id === p.element))
-          .filter((p): p is Player => p !== undefined)
+      : ctx.squadPlayers
+
+  const lineup = postTransferSquad.length === 15 ? computeLineup(postTransferSquad) : undefined
+  const epNextFromLineup = new Map<number, number>(
+    lineup?.starting.map(s => [s.player.id, s.epNext]) ?? [],
+  )
+  const startingXI = lineup?.starting.map(s => s.player) ??
+    applyTransfersToStartingXI(
+      transfers.map(t => ({ sellId: t.sell.player.id, buyId: t.topPick.player.id, buyPlayer: t.topPick.player })),
+      ctx,
+    )
 
   // 3. Resolve captain picks — must be in starting XI
   const captainPlayer = findPlayer(submission.captain.name, startingXI)
@@ -866,6 +887,7 @@ function resolveSubmission(
     reason: a.model.reason,
     why: a.model.why,
     riskTag: captainTags[idx + 2] ?? 'balanced',
+    gw_xp: epNextFromLineup.get(a.player.id) ?? (a.player.ep_next !== null ? parseFloat(a.player.ep_next) : parseFloat(a.player.form) * 0.9),
   }))
 
   const captainResult: CaptainResult = {
@@ -874,12 +896,14 @@ function resolveSubmission(
       reason: submission.captain.reason,
       why: submission.captain.why,
       riskTag: captainTags[0] ?? 'balanced',
+      gw_xp: epNextFromLineup.get(captainPlayer.id) ?? (captainPlayer.ep_next !== null ? parseFloat(captainPlayer.ep_next) : parseFloat(captainPlayer.form) * 0.9),
     },
     vc: {
       player: vcPlayer,
       reason: submission.vc.reason,
       why: submission.vc.why,
       riskTag: captainTags[1] ?? 'balanced',
+      gw_xp: epNextFromLineup.get(vcPlayer.id) ?? (vcPlayer.ep_next !== null ? parseFloat(vcPlayer.ep_next) : parseFloat(vcPlayer.form) * 0.9),
     },
     alternatives: altCaptainPicks,
     trace: [],
@@ -900,15 +924,6 @@ function resolveSubmission(
     text: `${submission.recommendation === 'save' ? 'Save' : `${transfers.length} transfer${transfers.length > 1 ? 's' : ''}`}. Captain: ${captainPlayer.web_name}. VC: ${vcPlayer.web_name}.`,
   })
 
-  const postTransferSquad =
-    transfers.length > 0
-      ? applyTransfersToFullSquad(
-          transfers.map(t => ({ sellId: t.sell.player.id, buyId: t.topPick.player.id, buyPlayer: t.topPick.player })),
-          ctx,
-        )
-      : ctx.squadPlayers
-
-  const lineup = postTransferSquad.length === 15 ? computeLineup(postTransferSquad) : undefined
   const chipAdvice = computeChipAdvice(ctx)
 
   trace.push({
@@ -935,6 +950,7 @@ function resolveSubmission(
     whySellContext: weakspots.whySellContext,
     nextWeekPreview,
     lineup,
+    actualPicks: getActualPicks(ctx),
     chipAdvice,
   }
 }
@@ -997,6 +1013,7 @@ function buildDeterministicBrief(
     }
   })
 
+
   // Post-transfer squad (all 15) and starting XI
   const postTransferSquad =
     transfers.length > 0
@@ -1007,6 +1024,9 @@ function buildDeterministicBrief(
       : ctx.squadPlayers
 
   const lineup = postTransferSquad.length === 15 ? computeLineup(postTransferSquad) : undefined
+  const epNextFromLineup = new Map<number, number>(
+    lineup?.starting.map(s => [s.player.id, s.epNext]) ?? [],
+  )
   const chipAdvice = computeChipAdvice(ctx)
 
   trace.push({
@@ -1014,22 +1034,13 @@ function buildDeterministicBrief(
     text: `${chipAdvice.status.filter(s => !s.used).length} chip(s) available. ${chipAdvice.specialGws.length > 0 ? `Special GWs: ${chipAdvice.specialGws.map(sg => `GW${sg.gwId}`).join(', ')}.` : 'No BGW/DGW confirmed yet.'}`,
   })
 
-  const startingXI =
-    transfers.length > 0
-      ? applyTransfersToStartingXI(
-          transfers.map(t => ({ sellId: t.sell.player.id, buyId: t.topPick.player.id, buyPlayer: t.topPick.player })),
-          ctx,
-        )
-      : ctx.picks.picks
-          .filter(p => p.position <= 11)
-          .map(p => ctx.bootstrap.elements.find(e => e.id === p.element))
-          .filter((p): p is Player => p !== undefined)
+  const startingXI = lineup?.starting.map(s => s.player) ?? ctx.squadPlayers.slice(0, 11)
 
   const nonGkStarters = startingXI
     .filter(p => p.element_type !== 1)
     .map(p => ({
       player: p,
-      epNext: p.ep_next !== null ? parseFloat(p.ep_next) : parseFloat(p.form) * 0.9,
+      epNext: epNextFromLineup.get(p.id) ?? (p.ep_next !== null ? parseFloat(p.ep_next) : parseFloat(p.form) * 0.9),
     }))
     .sort((a, b) => b.epNext - a.epNext)
 
@@ -1048,6 +1059,7 @@ function buildDeterministicBrief(
       risks: item.player.news || 'None identified',
     },
     riskTag: tag,
+    gw_xp: item.epNext,
   })
 
   const captainResult: CaptainResult = {
@@ -1078,6 +1090,7 @@ function buildDeterministicBrief(
     whySellContext: weakspots.whySellContext,
     nextWeekPreview,
     lineup,
+    actualPicks: getActualPicks(ctx),
     chipAdvice,
   }
 }
@@ -1209,13 +1222,16 @@ export async function generateBrief(
           const buyPl = findPlayer(t.topPickName, ctx.bootstrap.elements)
           return sellPl && buyPl ? [{ sellId: sellPl.id, buyId: buyPl.id, buyPlayer: buyPl }] : []
         })
-        const preXI =
+        const preSquad =
           resolvedTransfers.length > 0
-            ? applyTransfersToStartingXI(resolvedTransfers, ctx)
-            : ctx.picks.picks
-                .filter(p => p.position <= 11)
-                .map(p => ctx.bootstrap.elements.find(e => e.id === p.element))
-                .filter((p): p is Player => !!p)
+            ? applyTransfersToFullSquad(resolvedTransfers, ctx)
+            : ctx.squadPlayers
+        const preXI = preSquad.length === 15
+          ? computeLineup(preSquad).starting.map(s => s.player)
+          : ctx.picks.picks
+              .filter(p => p.position <= 11)
+              .map(p => ctx.bootstrap.elements.find(e => e.id === p.element))
+              .filter((p): p is Player => !!p)
         const captainOK = !!findPlayer(raw.captain.name, preXI)
         const vcOK = !!findPlayer(raw.vc.name, preXI)
         if (!captainOK || !vcOK) {
@@ -1223,7 +1239,7 @@ export async function generateBrief(
           const role = !captainOK ? 'Captain' : 'VC'
           const badName = !captainOK ? raw.captain.name : raw.vc.name
           const xiNames = preXI.map(p => p.web_name).join(', ')
-          trace.push({ title: 'Guard', text: `${role} "${badName}" not in starting XI — asking model to retry.` })
+          trace.push({ title: 'Guard', text: `${role} "${badName}" not in lineup XI — asking model to retry.` })
           messages.push({ role: 'assistant', content: response.content })
           messages.push({
             role: 'user',
@@ -1231,7 +1247,7 @@ export async function generateBrief(
               {
                 type: 'tool_result',
                 tool_use_id: submitBlock.id,
-                content: `${role} "${badName}" is not in the post-transfer starting XI. The starting XI contains: ${xiNames}. Please re-submit with a captain and VC from this list.`,
+                content: `${role} "${badName}" is not in the post-transfer lineup-optimised starting XI. The lineup XI contains: ${xiNames}. Please re-submit with a captain and VC from this list.`,
                 is_error: true,
               },
             ],

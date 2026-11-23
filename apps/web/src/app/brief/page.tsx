@@ -309,6 +309,7 @@ export default async function BriefPage() {
       teamName={teamName}
       receiptData={receiptData}
       emailOptOut={profile.email_opt_out}
+      refreshesThisGw={0}
     />
   )
 }

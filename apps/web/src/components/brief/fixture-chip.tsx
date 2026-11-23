@@ -6,6 +6,7 @@ interface FixtureChipProps {
   isHome?: boolean
   isDouble?: boolean
   size?: 'sm' | 'md'
+  title?: string
 }
 
 function fdrClass(fdr: number | null): string {
@@ -16,16 +17,17 @@ function fdrClass(fdr: number | null): string {
   return 'bg-fdr-5 text-fdr-5-foreground'
 }
 
-export function FixtureChip({ fdr, opponent, isHome, isDouble, size = 'md' }: FixtureChipProps) {
+export function FixtureChip({ fdr, opponent, isHome, isDouble, size = 'md', title }: FixtureChipProps) {
   if (fdr === null) {
     return (
       <span
         className={cn(
-          'inline-flex items-center rounded-sm font-mono font-medium',
-          size === 'sm' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-0.5 text-number',
+          'inline-flex items-center font-mono font-medium',
+          size === 'sm' ? 'rounded-[6px] px-1.5 py-0.5 text-[11px]' : 'rounded-sm px-2 py-0.5 text-number',
           'bg-muted text-muted-foreground',
         )}
         aria-label="Blank gameweek"
+        title={title}
       >
         BLK
       </span>
@@ -44,11 +46,12 @@ export function FixtureChip({ fdr, opponent, isHome, isDouble, size = 'md' }: Fi
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-sm font-mono font-medium',
-        size === 'sm' ? 'px-1.5 py-0.5 text-[11px]' : 'px-2 py-0.5 text-number',
+        'inline-flex items-center gap-0.5 font-mono font-medium',
+        size === 'sm' ? 'rounded-[6px] px-1.5 py-0.5 text-[11px]' : 'rounded-sm px-2 py-0.5 text-number',
         fdrClass(fdr),
       )}
       aria-label={`FDR ${fdr}${opponent ? ` vs ${opponent}` : ''}${isDouble ? ' double gameweek' : ''}`}
+      title={title}
     >
       {parts.join(' ')}
     </span>

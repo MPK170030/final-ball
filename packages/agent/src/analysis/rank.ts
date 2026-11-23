@@ -27,6 +27,7 @@ export interface RankedAlternative {
   candidate: Candidate
   reason: string
   riskTag: RiskTag
+  gw_xp?: number
 }
 
 export interface RankedTransferCard {

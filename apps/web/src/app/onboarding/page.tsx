@@ -2,7 +2,11 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { OnboardingFlow } from './onboarding-flow'
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ change?: string }>
+}) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -15,7 +19,10 @@ export default async function OnboardingPage() {
     .eq('id', user.id)
     .single()
 
-  if (profile?.team_id) redirect('/brief')
+  const params = await searchParams
+  const changeMode = params.change === '1'
+
+  if (profile?.team_id && !changeMode) redirect('/brief')
 
   // Fetch available countries (built once per season; may be empty during dev)
   const { data: rows } = await supabase
@@ -25,5 +32,5 @@ export default async function OnboardingPage() {
 
   const countries = [...new Set((rows ?? []).map((r) => r.country))].filter(Boolean)
 
-  return <OnboardingFlow countries={countries} />
+  return <OnboardingFlow countries={countries} changeMode={changeMode} />
 }

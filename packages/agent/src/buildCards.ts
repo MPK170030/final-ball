@@ -3,6 +3,33 @@ import type { CaptainPick } from './generateCaptain.js'
 import type { RankedTransferCard } from './analysis/rank.js'
 import type { PlayerScore } from './analysis/weakspot.js'
 import type { Player } from './fpl/types.js'
+import type { LineupSlot } from './analysis/lineup.js'
+
+const POS_MAP: Record<number, 'GK' | 'DEF' | 'MID' | 'FWD'> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
+
+function toPitchPlayer(s: LineupSlot, clubs: Map<number, string>) {
+  return {
+    id: s.player.id,
+    name: s.player.web_name,
+    club: clubs.get(s.player.team) ?? '???',
+    position: POS_MAP[s.player.element_type] ?? 'FWD',
+    gw_xp: s.epNext,
+    is_gk: s.player.element_type === 1,
+  }
+}
+
+function playerToPitchPlayer(p: Player, clubs: Map<number, string>) {
+  const ep = p.ep_next !== null ? parseFloat(p.ep_next) : parseFloat(p.form) * 0.9
+  const avail = p.chance_of_playing_next_round !== null ? p.chance_of_playing_next_round / 100 : 1.0
+  return {
+    id: p.id,
+    name: p.web_name,
+    club: clubs.get(p.team) ?? '???',
+    position: POS_MAP[p.element_type] ?? ('FWD' as const),
+    gw_xp: ep * avail,
+    is_gk: p.element_type === 1,
+  }
+}
 
 export type EnrichMeta = {
   clubs: Map<number, string>
@@ -130,6 +157,12 @@ export function buildCardRows(result: BriefResult, enrich: EnrichMeta): CardRow[
   }
 
   if (result.lineup) {
+    const xiAfter = result.lineup.starting.map(s => toPitchPlayer(s, clubs))
+    const benchAfter = result.lineup.bench.map(s => toPitchPlayer(s, clubs))
+    const firstTransfer = result.transfers[0]
+    const xiNow = (result.actualPicks?.starters ?? []).map(p => playerToPitchPlayer(p, clubs))
+    const benchNow = (result.actualPicks?.bench ?? []).map(p => playerToPitchPlayer(p, clubs))
+
     rows.push({
       type: 'lineup',
       position: pos++,
@@ -152,6 +185,15 @@ export function buildCardRows(result: BriefResult, enrich: EnrichMeta): CardRow[
         swapsIn: result.lineup.swapsIn,
         swapsOut: result.lineup.swapsOut,
         hasChanges: result.lineup.hasChanges,
+        xi_after: xiAfter,
+        bench_after: benchAfter,
+        xi_now: xiNow.length ? xiNow : undefined,
+        bench_now: benchNow.length ? benchNow : undefined,
+        changes: {
+          sold_player: firstTransfer ? playerToPitchPlayer(firstTransfer.sell.player, clubs) : null,
+          new_player: firstTransfer ? playerToPitchPlayer(firstTransfer.topPick.player, clubs) : null,
+        },
+        total_xp_after: xiAfter.reduce((s, p) => s + p.gw_xp, 0),
       },
     })
   }

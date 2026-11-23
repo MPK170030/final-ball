@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Final Ball — Brief, desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#181818}
+a{color:#F7F7F7}a:hover{color:#FFA04D}
+.fb-btn{cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.fb-ghost:hover{border-color:#A3A3A3 !important}
+.fb-row:hover{background:#333333 !important}
+.fb-btn:focus-visible,.fb-row:focus-visible,textarea:focus-visible{outline:2px solid #FF8A1F;outline-offset:2px}
+.fb-in{animation:fbIn .4s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fbIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fb-flip{animation:fbFlip .6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fbFlip{0%{transform:perspective(400px) rotateY(90deg);opacity:0}100%{transform:none;opacity:1}}
+.fb-pop{animation:fbPop .45s cubic-bezier(.2,.9,.3,1.4) both}
+@keyframes fbPop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+.fb-flash{animation:fbFlash 1.2s ease both}
+@keyframes fbFlash{0%,100%{box-shadow:0 0 0 0 rgba(255,138,31,0)}25%{box-shadow:0 0 0 3px rgba(255,138,31,.7)}}
+@keyframes fbBar{from{transform:scaleX(0)}to{transform:none}}
+.fb-slide{animation:fbSlide .45s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fbSlide{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.fb-skel{background:linear-gradient(90deg,#2C2C2C 0%,#383838 50%,#2C2C2C 100%);background-size:200% 100%;animation:fbSk 1.2s linear infinite;border-radius:14px}
+@keyframes fbSk{from{background-position:200% 0}to{background-position:-200% 0}}
+.fb-in{animation:fbIn .45s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fbGrow{from{transform:scaleY(0)}to{transform:none}}
+.fb-bar{transition:opacity .15s ease}.fb-bar:hover{opacity:.85}.fb-bar:focus-visible{outline:2px solid #FF8A1F;outline-offset:2px}
+.fb-settle{animation:fbSettle .9s cubic-bezier(.2,.7,.2,1) both}
+@keyframes fbSettle{0%{opacity:0;transform:translateY(-6px) scale(.98);border-color:#4CAF7A}60%{opacity:1;transform:none;border-color:#4CAF7A}100%{border-color:#424242}}
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important}}
+</style>
+</helmet>
+<div style="font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #F7F7F7; background: #181818; min-height: 100vh">
+
+<header style="position: sticky; top: 0; z-index: 20; background: rgba(24,24,24,0.9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid #2C2C2C">
+<div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px">
+<div style="display: flex; align-items: center; gap: 28px">
+<span style="display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px">
+<svg width="30" height="30" viewBox="72 72 380 380" fill="none" aria-hidden="true"><path d="M276 284 L352 360 M352 284 L276 360" stroke="#F7F7F7" stroke-width="34" stroke-linecap="round"></path><circle cx="140" cy="380" r="46" stroke="#F7F7F7" stroke-width="34"></circle><path d="M176 336 C 200 200, 300 150, 352 170" stroke="#FF8A1F" stroke-width="30" stroke-linecap="round"></path><circle cx="384" cy="150" r="52" stroke="#FF8A1F" stroke-width="34"></circle></svg>
+<span>Final <span style="color: #FF8A1F">Ball</span></span>
+</span>
+<nav aria-label="Main" style="display: flex; gap: 4px; padding: 4px; background: #232323; border-radius: 10px">
+<sc-for list="{{ nav }}" as="t" hint-placeholder-count="2">
+<button type="button" class="fb-btn" aria-current="{{ t.cur }}" onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</button>
+</sc-for>
+</nav>
+</div>
+<div style="display: flex; align-items: center; gap: 12px">
+<button type="button" class="fb-btn fb-ghost" onClick="{{ goRecord }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 999px; color: #F7F7F7; font: inherit; font-size: 13px">Last 5 GWs <span style="font-family: 'IBM Plex Mono', monospace; color: #A3A3A3">pending</span></button>
+<button type="button" class="fb-btn" aria-label="Account" style="width: 40px; height: 40px; border-radius: 50%; border: 1px solid #424242; background: #2C2C2C; color: #F7F7F7; font: inherit; font-weight: 600">M</button>
+</div>
+</div>
+</header>
+
+<sc-if value="{{ isWeek }}" hint-placeholder-val="{{ true }}">
+<div style="border-bottom: 1px solid #2C2C2C; background: #1E1E1E">
+<div style="max-width: 1200px; margin: 0 auto; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+<div style="display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap">
+<h1 style="margin: 0; font-size: 28px; letter-spacing: -0.02em">GW11 brief</h1>
+<span style="font-size: 15px; font-weight: 500">Kobbie and Paste</span>
+</div>
+<dl style="margin: 0; display: flex; gap: 22px; flex-wrap: wrap; font-size: 13px; align-items: center">
+<div style="display: flex; gap: 6px; align-items: baseline"><dt style="color: #A3A3A3">Deadline</dt><dd role="timer" aria-live="off" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: #FF8A1F">{{ countdown }}</dd></div>
+<div style="display: flex; gap: 6px; align-items: baseline"><dt style="color: #A3A3A3">Free transfers</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace">1</dd></div>
+<div style="display: flex; gap: 6px; align-items: baseline"><dt style="color: #A3A3A3">Bank</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace">£5.4m</dd></div>
+<div style="display: flex; gap: 6px; align-items: baseline"><dt style="color: #A3A3A3">Counters</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', monospace">1 / 10 left</dd></div>
+</dl>
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="font-size: 12px; color: #A3A3A3">Generated {{ generated }}</span>
+<button type="button" class="fb-btn fb-ghost" onClick="{{ refresh }}" style="display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">
+<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M12 7a5 5 0 1 1-1.5-3.5M12 2v2.5H9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+{{ refreshLabel }}</button>
+</div>
+</div>
+</div>
+
+<main style="max-width: 1200px; margin: 0 auto; padding: 28px 24px 64px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<div style="flex: 999 1 620px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<sc-if value="{{ refreshing }}" hint-placeholder-val="{{ false }}">
+<div role="status" aria-live="polite" style="display: flex; flex-direction: column; gap: 14px"><span style="font-size: 13px; color: #A3A3A3">Rebuilding your brief with the latest news…</span><div class="fb-skel" style="height: 120px"></div><div class="fb-skel" style="height: 360px"></div><div class="fb-skel" style="height: 240px"></div></div>
+</sc-if>
+<sc-if value="{{ notRefreshing }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 20px">
+
+<sc-if value="{{ newsOpen }}" hint-placeholder-val="{{ true }}">
+<div role="status" class="fb-slide" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #F26A3D; border-radius: 10px; background: #181818">
+<svg width="18" height="18" viewBox="0 0 12 12" fill="none" aria-hidden="true" style="flex: none"><path d="M6 1l5 9H1z" stroke="#F26A3D" stroke-width="1.1" stroke-linejoin="round"></path><path d="M6 4.5v2.3M6 8.4v.1" stroke="#F26A3D" stroke-width="1.1" stroke-linecap="round"></path></svg>
+<span style="flex: 1; font-size: 14px"><span style="font-weight: 600; color: #F26A3D">News since this brief: </span>Evanilson (your vice) flagged 75%, knock.</span>
+<button type="button" class="fb-btn fb-ghost" onClick="{{ reCheck }}" style="min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">Re-check captain</button>
+<button type="button" class="fb-btn" onClick="{{ closeNews }}" aria-label="Dismiss" style="width: 36px; height: 36px; background: transparent; border: 0; color: #A3A3A3; font: inherit; font-size: 18px">×</button>
+</div>
+</sc-if>
+
+<section aria-labelledby="moves-h" style="background: #2C2C2C; border: 1.5px solid #FF8A1F; border-radius: 14px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px">
+<h2 id="moves-h" style="margin: 0; font-size: 20px; letter-spacing: -0.01em">Your moves this week</h2>
+<span style="font-size: 13px; color: #A3A3A3">In the order you make them in FPL</span>
+</div>
+<ol style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px">
+<sc-for list="{{ moves }}" as="m" hint-placeholder-count="4">
+<li style="display: flex">
+<a href="{{ m.href }}" class="fb-row fb-in" onClick="{{ m.go }}" style="animation-delay: {{ m.delay }}; flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 14px; background: #181818; border-radius: 10px; text-decoration: none; color: #F7F7F7; transition: background .15s ease">
+<span style="display: flex; align-items: center; gap: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: #A3A3A3"><span style="width: 18px; height: 18px; border-radius: 50%; border: 1px solid #6B6B6B; display: inline-flex; align-items: center; justify-content: center; font-size: 10px">{{ m.n }}</span>{{ m.label }}</span>
+<span style="font-size: 18px; font-weight: 600; letter-spacing: -0.01em">{{ m.main }}</span>
+<span style="font-size: 12px; color: #A3A3A3">{{ m.sub }}</span>
+</a>
+</li>
+</sc-for>
+</ol>
+</section>
+
+<section id="lineup" class="{{ clsLineup }}" aria-labelledby="lu-h" style="background: #2C2C2C; border: 1px solid #424242; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 140px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 id="lu-h" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #A3A3A3">YOUR XI · 4-4-2</h2>
+<div style="display: flex; gap: 8px">
+<button type="button" class="fb-btn fb-ghost" onClick="{{ counterLineup }}" style="min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">Counter</button>
+<button type="button" class="fb-btn fb-ghost" onClick="{{ traceLineup }}" style="min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">Trace</button>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<div role="tablist" aria-label="Compare lineups" style="display: flex; gap: 4px; padding: 4px; background: #181818; border-radius: 10px">
+<sc-for list="{{ pitchTabs }}" as="t" hint-placeholder-count="2">
+<button type="button" role="tab" aria-selected="{{ t.sel }}" class="fb-btn" onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.label }}</button>
+</sc-for>
+</div>
+<div aria-live="polite" style="display: flex; align-items: baseline; gap: 8px"><span style="font-size: 12px; color: #A3A3A3">Projected GW11</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums">{{ xpNow }}</span><sc-if value="{{ isAfter }}" hint-placeholder-val="{{ true }}"><span class="fb-pop" style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #4CAF7A; animation-delay: 500ms">{{ xpDelta }}</span></sc-if></div>
+</div>
+<div style="display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: #A3A3A3; min-height: 18px">
+<sc-for list="{{ legendItems }}" as="l" hint-placeholder-count="2">
+<span class="fb-in" style="display: flex; align-items: center; gap: 6px"><span style="{{ l.sw }}"></span>{{ l.text }}</span>
+</sc-for>
+</div>
+<div onPointerDown="{{ swipeStart }}" onPointerUp="{{ swipeEnd }}" style="position: relative; border-radius: 12px; background: #1E1E1E; border: 1px solid #383838; padding: 20px 12px; overflow: hidden; touch-action: pan-y; user-select: none">
+<svg width="100%" height="100%" viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; inset: 0"><g stroke="#2C2C2C" stroke-width="1.5" fill="none"><rect x="110" y="-2" width="180" height="62" vector-effect="non-scaling-stroke"></rect><rect x="160" y="-2" width="80" height="26" vector-effect="non-scaling-stroke"></rect><path d="M 140 300 A 60 60 0 0 1 260 300" vector-effect="non-scaling-stroke"></path></g></svg>
+<sc-if value="{{ pkEven }}" hint-placeholder-val="{{ true }}">
+<div style="position: relative; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{ xi }}" as="r" hint-placeholder-count="4">
+<div style="display: flex; justify-content: center; gap: 12px">
+<sc-for list="{{ r.players }}" as="p" hint-placeholder-count="4">
+<span class="{{ p.cls }}" style="{{ p.tile }}; width: 116px; box-sizing: border-box" role="img" aria-label="{{ p.aria }}">
+<svg width="44" height="44" viewBox="0 0 40 40" aria-hidden="true"><path d="M13 5 L17 3.5 Q20 7 23 3.5 L27 5 L36 11 L32 17 L29 15 L29 36 L11 36 L11 15 L8 17 L4 11 Z" fill="{{ p.body }}" stroke="#6B6B6B" stroke-width="1"></path><rect x="15" y="9" width="3" height="27" fill="{{ p.stripe }}"></rect><rect x="22" y="9" width="3" height="27" fill="{{ p.stripe }}"></rect><path d="M13 5 L4 11 L8 17 L11 15 Z" fill="{{ p.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path><path d="M27 5 L36 11 L32 17 L29 15 Z" fill="{{ p.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path></svg>
+<sc-if value="{{ p.isC }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" class="fb-pop" style="animation-delay: 700ms; position: absolute; top: 4px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: #FF8A1F; color: #181818; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700">C</span></sc-if>
+<sc-if value="{{ p.isV }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="position: absolute; top: 4px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: #181818; border: 1.5px solid #F7F7F7; color: #F7F7F7; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; box-sizing: border-box">V</span></sc-if>
+<span style="font-size: 13px; font-weight: 600; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis">{{ p.name }}</span>
+<span style="font-size: 11px; color: #A3A3A3">{{ p.club }} · <span style="font-family: 'IBM Plex Mono', monospace; color: #F7F7F7">{{ p.xp }}</span></span>
+<sc-if value="{{ p.hasStatus }}" hint-placeholder-val="{{ false }}"><span style="{{ p.statusStyle }}">{{ p.statusText }}</span></sc-if>
+</span>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ pkOdd }}" hint-placeholder-val="{{ false }}">
+<div style="position: relative; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{ xi }}" as="r" hint-placeholder-count="4">
+<div style="display: flex; justify-content: center; gap: 12px">
+<sc-for list="{{ r.players }}" as="p" hint-placeholder-count="4">
+<span class="{{ p.cls }}" style="{{ p.tile }}; width: 116px; box-sizing: border-box" role="img" aria-label="{{ p.aria }}">
+<svg width="44" height="44" viewBox="0 0 40 40" aria-hidden="true"><path d="M13 5 L17 3.5 Q20 7 23 3.5 L27 5 L36 11 L32 17 L29 15 L29 36 L11 36 L11 15 L8 17 L4 11 Z" fill="{{ p.body }}" stroke="#6B6B6B" stroke-width="1"></path><rect x="15" y="9" width="3" height="27" fill="{{ p.stripe }}"></rect><rect x="22" y="9" width="3" height="27" fill="{{ p.stripe }}"></rect><path d="M13 5 L4 11 L8 17 L11 15 Z" fill="{{ p.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path><path d="M27 5 L36 11 L32 17 L29 15 Z" fill="{{ p.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path></svg>
+<sc-if value="{{ p.isC }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" class="fb-pop" style="animation-delay: 700ms; position: absolute; top: 4px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: #FF8A1F; color: #181818; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700">C</span></sc-if>
+<sc-if value="{{ p.isV }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="position: absolute; top: 4px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: #181818; border: 1.5px solid #F7F7F7; color: #F7F7F7; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; box-sizing: border-box">V</span></sc-if>
+<span style="font-size: 13px; font-weight: 600; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis">{{ p.name }}</span>
+<span style="font-size: 11px; color: #A3A3A3">{{ p.club }} · <span style="font-family: 'IBM Plex Mono', monospace; color: #F7F7F7">{{ p.xp }}</span></span>
+<sc-if value="{{ p.hasStatus }}" hint-placeholder-val="{{ false }}"><span style="{{ p.statusStyle }}">{{ p.statusText }}</span></sc-if>
+</span>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<span style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: -6px; font-size: 12px; color: #A3A3A3"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 7h10M4.5 4.5L2 7l2.5 2.5M9.5 4.5L12 7l-2.5 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>Drag the pitch sideways or use the tabs to compare</span>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: #A3A3A3">BENCH · AUTO-SUB ORDER</span>
+<div style="display: flex; gap: 12px; justify-content: flex-start">
+<sc-for list="{{ bench }}" as="p" hint-placeholder-count="4">
+<span class="{{ p.cls }}" style="{{ p.tile }}; width: 116px; box-sizing: border-box" role="img" aria-label="{{ p.aria }}">
+<svg width="44" height="44" viewBox="0 0 40 40" aria-hidden="true"><path d="M13 5 L17 3.5 Q20 7 23 3.5 L27 5 L36 11 L32 17 L29 15 L29 36 L11 36 L11 15 L8 17 L4 11 Z" fill="{{ p.body }}" stroke="#6B6B6B" stroke-width="1"></path><rect x="15" y="9" width="3" height="27" fill="{{ p.stripe }}"></rect><rect x="22" y="9" width="3" height="27" fill="{{ p.stripe }}"></rect><path d="M13 5 L4 11 L8 17 L11 15 Z" fill="{{ p.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path><path d="M27 5 L36 11 L32 17 L29 15 Z" fill="{{ p.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path></svg>
+<sc-if value="{{ p.isC }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" class="fb-pop" style="animation-delay: 700ms; position: absolute; top: 4px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: #FF8A1F; color: #181818; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700">C</span></sc-if>
+<sc-if value="{{ p.isV }}" hint-placeholder-val="{{ false }}"><span aria-hidden="true" style="position: absolute; top: 4px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: #181818; border: 1.5px solid #F7F7F7; color: #F7F7F7; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; box-sizing: border-box">V</span></sc-if>
+<span style="font-size: 13px; font-weight: 600; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis"><span style="font-family: 'IBM Plex Mono', monospace; color: #A3A3A3">{{ p.n }}</span> {{ p.name }}</span>
+<span style="font-size: 11px; color: #A3A3A3">{{ p.club }} · <span style="font-family: 'IBM Plex Mono', monospace; color: #F7F7F7">{{ p.xp }}</span></span>
+<sc-if value="{{ p.hasStatus }}" hint-placeholder-val="{{ false }}"><span style="{{ p.statusStyle }}">{{ p.statusText }}</span></sc-if>
+</span>
+</sc-for>
+</div>
+</div>
+
+</section>
+<section id="transfer" class="{{ clsTransfer }}" aria-labelledby="tr-h" style="{{ transferStyle }}">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+<h2 id="tr-h" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #A3A3A3">TRANSFER · WEAK SPOT: MID</h2>
+<div style="display: flex; gap: 8px"><button type="button" onClick="{{ counterTransfer }}" class="fb-btn fb-ghost" style="min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">Counter this pick</button><button type="button" onClick="{{ traceTransfer }}" class="fb-btn fb-ghost" style="min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">Trace</button></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: stretch">
+<div style="background: #181818; border: 1px solid #383838; border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 14px"><svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><path d="M13 5 L17 3.5 Q20 7 23 3.5 L27 5 L36 11 L32 17 L29 15 L29 36 L11 36 L11 15 L8 17 L4 11 Z" fill="{{ sellShirt.body }}" stroke="#6B6B6B" stroke-width="1"></path><rect x="15" y="9" width="3" height="27" fill="{{ sellShirt.stripe }}"></rect><rect x="22" y="9" width="3" height="27" fill="{{ sellShirt.stripe }}"></rect><path d="M13 5 L4 11 L8 17 L11 15 Z" fill="{{ sellShirt.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path><path d="M27 5 L36 11 L32 17 L29 15 Z" fill="{{ sellShirt.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path></svg>
+<span style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A3A3A3; letter-spacing: 0.06em">SELL</span><span style="font-size: 20px; font-weight: 600">Schade</span><span style="font-size: 13px; color: #A3A3A3">BRE · MID · £6.1m · <span style="font-family: 'IBM Plex Mono', monospace">4.5</span> xP</span><span style="display: flex; gap: 4px"><sc-for list="{{ schadeFx }}" as="f" hint-placeholder-count="3"><span style="{{ f.style }}" title="{{ f.title }}" aria-label="{{ f.aria }}">{{ f.label }}</span></sc-for></span></span></div>
+<div style="display: flex; align-items: center; color: #A3A3A3"><svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+<div style="background: #181818; {{ pick.border }}; border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 14px; transition: border-color .2s ease"><svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true"><path d="M13 5 L17 3.5 Q20 7 23 3.5 L27 5 L36 11 L32 17 L29 15 L29 36 L11 36 L11 15 L8 17 L4 11 Z" fill="{{ pick.shirt.body }}" stroke="#6B6B6B" stroke-width="1"></path><rect x="15" y="9" width="3" height="27" fill="{{ pick.shirt.stripe }}"></rect><rect x="22" y="9" width="3" height="27" fill="{{ pick.shirt.stripe }}"></rect><path d="M13 5 L4 11 L8 17 L11 15 Z" fill="{{ pick.shirt.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path><path d="M27 5 L36 11 L32 17 L29 15 Z" fill="{{ pick.shirt.sleeve }}" stroke="#6B6B6B" stroke-width="1"></path></svg>
+<span style="display: flex; flex-direction: column; gap: 4px; flex: 1"><span style="display: flex; justify-content: space-between; align-items: center"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A3A3A3; letter-spacing: 0.06em">{{ pick.slot }}</span><span style="{{ tagStyle }}">{{ pick.tag }}</span></span><span class="fb-swap" style="font-size: 20px; font-weight: 600">{{ pick.name }}</span><span style="font-size: 13px; color: #A3A3A3">{{ pick.meta }} · <span style="font-family: 'IBM Plex Mono', monospace; color: #F7F7F7; font-weight: 600">{{ pick.xp }}</span> xP <span style="font-family: 'IBM Plex Mono', monospace; color: #E5534B">{{ pick.deltaText }}</span></span><span style="display: flex; gap: 4px"><sc-for list="{{ pick.fixtures }}" as="f" hint-placeholder-count="3"><span style="{{ f.style }}" title="{{ f.title }}" aria-label="{{ f.aria }}">{{ f.label }}</span></sc-for></span></span></div>
+</div>
+<sc-if value="{{ pick.previewing }}" hint-placeholder-val="{{ false }}"><div class="fb-in" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px dashed #6B6B6B; border-radius: 10px; font-size: 13px"><span>Previewing <span style="font-weight: 600">{{ pick.name }}</span>. Bank after: <span style="font-family: 'IBM Plex Mono', monospace">{{ pick.bank }}</span>. The agent's pick is still Wirtz.</span><button type="button" class="fb-btn fb-ghost" onClick="{{ resetPick }}" style="min-height: 32px; padding: 0 10px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 12px">Back to top pick</button></div></sc-if>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 10px"><h3 style="margin: 0; font-size: 16px">Why sell Schade?</h3><p style="margin: 0; font-size: 14px; line-height: 1.6; color: #D6D6D6">Averaging 2.0 points per game, with EVE (3), MUN (3) and ARS (4) next. Projected 4.5 points over 3 GWs, the lowest in your squad.</p><div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; background: #181818; border-radius: 10px">
+<span style="font-size: 12px; color: #A3A3A3">Weakest 3 in your squad · xP over 3 GWs</span>
+<sc-for list="{{ weak }}" as="w" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 76px 1fr 34px; gap: 10px; align-items: center; font-size: 13px"><span>{{ w.name }}</span><span style="background: #2C2C2C; border-radius: 4px"><span style="{{ w.bar }}; display: block"></span></span><span style="font-family: 'IBM Plex Mono', monospace; text-align: right">{{ w.v }}</span></div>
+</sc-for>
+</div></div>
+<div style="display: flex; flex-direction: column; gap: 10px"><h3 style="margin: 0; font-size: 16px">Why {{ pick.name }}?</h3><p class="fb-swap" style="margin: 0; font-size: 14px; line-height: 1.6; color: #D6D6D6">{{ pick.reason }}</p></div>
+</div>
+<div style="border-top: 1px solid #383838; padding-top: 12px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: #A3A3A3">3 ALTERNATIVES</span>
+<sc-for list="{{ alts }}" as="a" hint-placeholder-count="3">
+<div style="{{ a.rowStyle }}">
+<button type="button" class="fb-row" onClick="{{ a.toggle }}" aria-expanded="{{ a.open }}" style="width: 100%; min-height: 48px; display: grid; grid-template-columns: 22px 1fr auto auto auto 20px; gap: 12px; align-items: center; padding: 0 12px; background: transparent; border: 0; border-radius: 10px; color: #F7F7F7; font: inherit; text-align: left; cursor: pointer">
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #A3A3A3">{{ a.n }}</span>
+<span style="font-size: 15px; font-weight: 500">{{ a.name }} <span style="font-size: 12px; font-weight: 400; color: #A3A3A3">{{ a.meta }}</span></span>
+<span style="{{ a.tagStyle }}">{{ a.tag }}</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px">{{ a.xp }} <span style="font-size: 11px; color: #A3A3A3">xP</span></span>
+<span style="display: flex; gap: 3px"><sc-for list="{{ a.fixtures }}" as="f" hint-placeholder-count="3"><span style="{{ f.style }}" title="{{ f.title }}" aria-label="{{ f.aria }}">{{ f.label }}</span></sc-for></span>
+<span style="color: #A3A3A3; font-size: 18px; text-align: center">{{ a.sign }}</span>
+</button>
+<sc-if value="{{ a.open }}" hint-placeholder-val="{{ false }}">
+<p class="fb-in" style="margin: 0; padding: 0 12px 14px 46px; font-size: 14px; line-height: 1.55; color: #A3A3A3">{{ a.reason }}</p>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</section>
+<section id="captain" class="{{ clsCaptain }}" aria-labelledby="cap-h" style="{{ captainStyle }}">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px">
+<h2 id="cap-h" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #A3A3A3">CAPTAIN</h2>
+<div style="display: flex; gap: 8px"><button type="button" onClick="{{ counterCaptain }}" class="fb-btn fb-ghost" style="min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">Counter</button><button type="button" onClick="{{ traceCaptain }}" class="fb-btn fb-ghost" style="min-height: 36px; padding: 0 12px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 13px">Trace</button></div>
+</div>
+<sc-if value="{{ hasCapNote }}" hint-placeholder-val="{{ false }}"><span class="fb-in" role="status" style="{{ capNoteStyle }}">{{ capNote }}</span></sc-if>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px">
+<div style="background: #181818; border: 1.5px solid #FF8A1F; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 32px; height: 32px; border-radius: 50%; background: #FF8A1F; color: #181818; display: flex; align-items: center; justify-content: center; font-weight: 700">C</span><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><span style="font-size: 17px; font-weight: 600">{{ cap.name }}</span><span style="font-size: 12px; color: #A3A3A3">{{ cap.meta }} · Bold</span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 600">{{ cap.xp }}</span></div>
+<p style="margin: 0; font-size: 14px; line-height: 1.55; color: #D6D6D6">{{ cap.reason }}</p>
+</div>
+<div style="background: #181818; border: 1px solid #383838; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid #F7F7F7; display: flex; align-items: center; justify-content: center; font-weight: 700; box-sizing: border-box">V</span><span style="display: flex; flex-direction: column; gap: 2px; flex: 1"><span style="font-size: 17px; font-weight: 600">{{ vice.name }}</span><span style="font-size: 12px; color: #A3A3A3">{{ vice.meta }}</span></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 600">{{ vice.xp }}</span></div>
+<p style="margin: 0; font-size: 14px; line-height: 1.55; color: #D6D6D6">{{ vice.reason }}</p>
+</div>
+</div>
+<div style="border-radius: 10px; background: #232323">
+<button type="button" class="fb-row" onClick="{{ toggleCapAlt }}" aria-expanded="{{ capAlt }}" style="width: 100%; min-height: 48px; display: grid; grid-template-columns: 1fr auto auto 20px; gap: 10px; align-items: center; padding: 0 12px; background: transparent; border: 0; border-radius: 10px; color: #F7F7F7; font: inherit; text-align: left; cursor: pointer">
+<span style="font-size: 14px; font-weight: 500"><span style="font-size: 12px; color: #A3A3A3; font-weight: 400">Alt · </span>Tavernier</span>
+<span style="{{ tagStyle }}">Balanced</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px">6.5</span>
+<span style="color: #A3A3A3; font-size: 18px; text-align: center">{{ capAltSign }}</span>
+</button>
+<sc-if value="{{ capAlt }}" hint-placeholder-val="{{ false }}">
+<p class="fb-in" style="margin: 0; padding: 0 12px 14px; font-size: 14px; line-height: 1.55; color: #A3A3A3">BOU · vs NFO (H). On set pieces, so he has a floor of involvement even if he doesn't score.</p>
+</sc-if>
+</div>
+</section>
+
+<section id="chips" class="{{ clsChips }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border: 1px dashed #424242; border-radius: 14px">
+<span style="display: flex; flex-direction: column; gap: 4px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #A3A3A3">CHIPS</span><span style="font-size: 15px">Save them this week. <span style="color: #A3A3A3">3 available · first set expires GW19.</span></span></span>
+<button type="button" class="fb-btn fb-ghost" style="min-height: 40px; padding: 0 14px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 14px">Want to use one anyway?</button>
+</section>
+
+<p style="margin: 4px 0 0; font-size: 14px; color: #A3A3A3"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.06em">NEXT WEEK · </span>GW12 could expose your defence. We'll look there first.</p>
+</div>
+</sc-if>
+</div>
+
+<aside aria-label="Reasoning" style="flex: 1 1 340px; min-width: 0; max-width: 420px; position: sticky; top: 150px; background: #2C2C2C; border: 1px solid #424242; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 16px; max-height: calc(100vh - 180px); overflow-y: auto">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em; color: #A3A3A3">{{ panelTitle }}</span><span style="font-size: 12px; color: #A3A3A3">Pick Counter or Trace on a card</span></div>
+<div role="tablist" style="display: flex; gap: 4px; padding: 4px; background: #181818; border-radius: 10px">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+<button type="button" role="tab" aria-selected="{{ t.sel }}" onClick="{{ t.pick }}" class="fb-btn" style="{{ t.style }}">{{ t.label }}</button>
+</sc-for>
+</div>
+<sc-if value="{{ isTrace }}" hint-placeholder-val="{{ false }}">
+<ol class="fb-in" style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ traceSteps }}" as="t" hint-placeholder-count="12">
+<li style="display: grid; grid-template-columns: 24px 1fr; gap: 8px; font-size: 13px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A3A3A3; padding-top: 1px">{{ t.n }}</span><span style="display: flex; flex-direction: column; gap: 2px"><code style="font-family: 'IBM Plex Mono', monospace">{{ t.tool }}</code><span style="color: #A3A3A3">{{ t.result }}</span></span></li>
+</sc-for>
+</ol>
+</sc-if>
+<sc-if value="{{ isCounter }}" hint-placeholder-val="{{ false }}">
+<div class="fb-in" style="display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 13px; color: #A3A3A3">Push back on this pick. The agent re-checks with its tools before it answers. <span style="color: #F7F7F7">1 of 10 left this GW.</span></span>
+<div style="display: flex; gap: 6px; flex-wrap: wrap">
+<sc-for list="{{ replies }}" as="r" hint-placeholder-count="3">
+<button type="button" class="fb-btn fb-ghost" onClick="{{ r.pick }}" style="min-height: 36px; padding: 0 12px; border-radius: 999px; background: #181818; border: 1px solid #424242; color: #F7F7F7; font: inherit; font-size: 13px">{{ r.label }}</button>
+</sc-for>
+</div>
+<form onSubmit="{{ sendDraft }}" style="display: flex; flex-direction: column; gap: 6px">
+<label for="ctr" style="font-size: 13px">Or say it your way</label>
+<textarea id="ctr" rows="3" value="{{ draft }}" onChange="{{ onDraft }}" placeholder="e.g. Wirtz has been subbed off at 60 mins twice" style="resize: vertical; padding: 10px; background: #181818; color: #F7F7F7; border: 1px solid #424242; border-radius: 10px; font: inherit; font-size: 14px"></textarea>
+<span style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 11px; color: #A3A3A3; font-family: 'IBM Plex Mono', monospace">{{ draftLen }}</span><button type="submit" class="fb-btn" style="min-height: 36px; padding: 0 14px; border: 0; border-radius: 6px; background: #F7F7F7; color: #181818; font: inherit; font-weight: 600; font-size: 13px">Send counter</button></span>
+</form>
+<sc-if value="{{ checking }}" hint-placeholder-val="{{ false }}">
+<div role="status" aria-live="polite" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; background: #181818; border-radius: 10px">
+<span style="font-size: 12px; color: #A3A3A3">The agent is re-checking…</span>
+<sc-for list="{{ checkSteps }}" as="c" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 12px 120px 1fr; gap: 8px; align-items: center; font-size: 13px"><span style="{{ c.dot }}"></span><code style="font-family: 'IBM Plex Mono', monospace">{{ c.tool }}</code><span class="fb-in" style="color: #A3A3A3">{{ c.result }}</span></div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ hasOutcome }}" hint-placeholder-val="{{ false }}">
+<div class="fb-in" style="display: flex; flex-direction: column; gap: 6px; padding: 12px; background: #181818; border-radius: 10px">
+<span style="align-self: flex-start; font-size: 11px; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 6px; background: #383838">{{ outcome.badge }}</span>
+<p style="margin: 0; font-size: 14px; line-height: 1.5">{{ outcome.text }}</p>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</aside>
+</main>
+</sc-if>
+
+<sc-if value="{{ isRecord }}" hint-placeholder-val="{{ false }}">
+<main class="fb-in" style="max-width: 1200px; margin: 0 auto; padding: 36px 24px 64px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-size: 36px; letter-spacing: -0.02em">Your record</h1>
+<p style="margin: 0; font-size: 16px; line-height: 1.5; color: #A3A3A3">Every move gets a receipt 3 gameweeks later. Good weeks and bad stay on it.</p>
+</div>
+
+<sc-if value="{{ recEarly }}" hint-placeholder-val="{{ false }}">
+<div class="fb-in" style="display: flex; gap: 14px; align-items: center; padding: 16px; border: 1px dashed #6B6B6B; border-radius: 14px">
+<span aria-hidden="true" style="display: flex; gap: 4px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #8A93A6"></span><span style="width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #8A93A6; box-sizing: border-box"></span><span style="width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #8A93A6; box-sizing: border-box"></span></span>
+<span style="font-size: 14px; line-height: 1.5">Your first receipt settles after <span style="font-weight: 600">GW12</span>. Until then, this page fills in as gameweeks are played.</span>
+</div>
+<ol class="fb-in" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px">
+<li style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: #2C2C2C; border: 1px solid #424242"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #4CAF7A">DONE · GW9</span><span style="font-size: 14px">First move recorded: Fernandes → Manzambi</span></li>
+<li style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: #2C2C2C; border: 1px solid #424242"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A3A3A3">AFTER GW12</span><span style="font-size: 14px">First receipt settles, and the chart gets its first bar</span></li>
+<li style="display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: #2C2C2C; border: 1px dashed #424242"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A3A3A3">AFTER 5 SETTLED MOVES</span><span style="font-size: 14px">The full 5-gameweek scorecard and risk-tag breakdown</span></li>
+</ol>
+</sc-if>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+<div class="fb-in" style="background: #2C2C2C; border: 1px solid #424242; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 13px; color: #A3A3A3">Transfer impact · last 5 settled moves</span>
+<span aria-live="polite" style="{{ recImpactStyle }}">{{ recImpact }}</span>
+<sc-if value="{{ hasAgentIf }}" hint-placeholder-val="{{ true }}"><span style="font-size: 12px; color: #A3A3A3">If you'd followed every pick: <span style="font-family: 'IBM Plex Mono', monospace; color: #F7F7F7">{{ recAgent }}</span></span></sc-if>
+</div>
+<div class="fb-in" style="background: #2C2C2C; border: 1px solid #424242; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px; animation-delay: 80ms">
+<span style="font-size: 13px; color: #A3A3A3">Followed the agent</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 1">{{ recFollowed }}</span>
+<span style="font-size: 12px; color: #A3A3A3">Transfers, saves and captains</span>
+</div>
+<div class="fb-in" style="background: #2C2C2C; border: 1px solid #424242; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 6px; animation-delay: 160ms">
+<span style="font-size: 13px; color: #A3A3A3">When you push back, who's right?</span>
+<sc-if value="{{ hasCounters }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; height: 40px; border-radius: 10px; overflow: hidden; gap: 2px; margin-top: 4px">
+<span style="{{ ctrAgentStyle }}">Agent {{ ctrAgent }}</span>
+<span style="{{ ctrYouStyle }}">You {{ ctrYou }}</span>
+</div>
+<span style="font-size: 12px; color: #A3A3A3">11 settled counters</span>
+</sc-if>
+<sc-if value="{{ recEarly }}" hint-placeholder-val="{{ false }}"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; color: #8A93A6">No counters yet</span><span style="font-size: 12px; color: #A3A3A3">Scored once a countered pick settles</span></sc-if>
+</div>
+</div>
+
+<section aria-labelledby="rec-chart" style="background: #2C2C2C; border: 1px solid #424242; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 id="rec-chart" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #A3A3A3">TRANSFER RESULT BY GAMEWEEK</h2>
+<span style="font-size: 12px; color: #A3A3A3">Click a bar to see that week</span>
+</div>
+<div class="fb-scroll" style="overflow-x: auto">
+<div style="display: grid; grid-auto-flow: column; grid-auto-columns: minmax(80px, 1fr); gap: 8px; min-height: 230px">
+<sc-for list="{{ recBars }}" as="b" hint-placeholder-count="7">
+<button type="button" class="fb-bar" onClick="{{ b.pick }}" aria-pressed="{{ b.sel }}" aria-label="{{ b.aria }}" style="background: transparent; border: 0; padding: 0; display: flex; flex-direction: column; align-items: center; cursor: pointer; color: #F7F7F7; font: inherit">
+<span style="height: 120px; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px">
+<sc-if value="{{ b.up }}" hint-placeholder-val="{{ true }}"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px">{{ b.label }}</span><span style="{{ b.bar }}"></span></sc-if>
+</span>
+<span style="height: 1px; width: 100%; background: #6B6B6B"></span>
+<span style="height: 70px; width: 100%; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 6px">
+<sc-if value="{{ b.down }}" hint-placeholder-val="{{ false }}"><span style="{{ b.bar }}"></span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px">{{ b.label }}</span></sc-if>
+</span>
+<span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #A3A3A3; padding-top: 6px">{{ b.gw }}</span>
+<sc-if value="{{ b.fresh }}" hint-placeholder-val="{{ false }}"><span class="fb-pop" style="font-size: 10px; font-weight: 600; color: #4CAF7A; animation-delay: 600ms">NEW</span></sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{ hasTags }}" hint-placeholder-val="{{ true }}">
+<div style="border-top: 1px solid #383838; padding-top: 14px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 12px; color: #A3A3A3">By risk tag of the pick you made</span>
+<sc-for list="{{ recTags }}" as="t" hint-placeholder-count="4">
+<div style="display: grid; grid-template-columns: 140px 1fr 40px; gap: 10px; align-items: center; font-size: 13px"><span>{{ t.name }}</span><span style="background: #181818; border-radius: 4px"><span style="{{ t.bar }}"></span></span><span style="font-family: 'IBM Plex Mono', monospace; text-align: right">{{ t.v }}</span></div>
+</sc-for>
+</div>
+</sc-if>
+</section>
+
+<section aria-labelledby="rec-list" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<h2 id="rec-list" style="margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; color: #A3A3A3">RECEIPTS</h2>
+<div role="group" aria-label="Filter receipts" class="fb-scroll" style="display: flex; gap: 6px; overflow-x: auto">
+<sc-for list="{{ recFilters }}" as="f" hint-placeholder-count="4">
+<button type="button" class="fb-btn" aria-pressed="{{ f.sel }}" onClick="{{ f.pick }}" style="{{ f.style }}">{{ f.label }}</button>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{ hasRecSel }}" hint-placeholder-val="{{ false }}">
+<div class="fb-in" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: #A3A3A3"><span>{{ recSelLabel }}tap the bar again to show all</span><button type="button" class="fb-btn" onClick="{{ clearRecSel }}" style="min-height: 36px; padding: 0 10px; background: transparent; border: 1px solid #424242; border-radius: 6px; color: #F7F7F7; font: inherit; font-size: 12px">Show all</button></div>
+</sc-if>
+<sc-if value="{{ recEmpty }}" hint-placeholder-val="{{ false }}"><p style="margin: 0; padding: 16px; border: 1px dashed #424242; border-radius: 10px; font-size: 14px; color: #A3A3A3">Nothing here for this filter yet.</p></sc-if>
+<ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{ recItems }}" as="r" hint-placeholder-count="5">
+<li class="{{ r.cls }}" style="{{ r.style }}; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; background: #181818; border: 1px solid #424242; border-radius: 12px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+<span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.04em"><span>{{ r.gw }}</span><span style="color: #A3A3A3">{{ r.kind }}</span><span style="padding: 2px 6px; border-radius: 6px; background: #2C2C2C; color: #F7F7F7">{{ r.label }}</span><sc-if value="{{ r.hasTag }}" hint-placeholder-val="{{ false }}"><span style="padding: 1px 6px; border-radius: 6px; border: 1px solid #6B6B6B; font-family: 'IBM Plex Sans', sans-serif">{{ r.tag }}</span></sc-if><sc-if value="{{ r.fresh }}" hint-placeholder-val="{{ false }}"><span style="color: #4CAF7A">JUST SETTLED</span></sc-if></span>
+<span style="font-size: 16px; font-weight: 500; line-height: 1.4">{{ r.line }}</span>
+<sc-if value="{{ r.hasAgent }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: #A3A3A3">{{ r.agent }}</span></sc-if>
+</div>
+<div style="flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+<sc-if value="{{ r.scored }}" hint-placeholder-val="{{ true }}"><span style="{{ r.deltaStyle }}">{{ r.delta }}</span></sc-if>
+<sc-if value="{{ r.pending }}" hint-placeholder-val="{{ false }}"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #8A93A6">Pending</span><span aria-label="1 of 3 gameweeks played" style="display: flex; gap: 4px"><sc-for list="{{ r.dots }}" as="d" hint-placeholder-count="3"><span style="{{ d.style }}"></span></sc-for></span><span style="font-size: 11px; color: #A3A3A3">{{ r.window }}</span></sc-if>
+<sc-if value="{{ r.unscored }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; color: #A3A3A3; text-align: right">Not scored ·<br>counts as followed</span></sc-if>
+</div>
+</div>
+<sc-if value="{{ r.canNote }}" hint-placeholder-val="{{ false }}">
+<div style="border-top: 1px solid #2C2C2C; padding-top: 8px">
+<sc-if value="{{ r.editing }}" hint-placeholder-val="{{ false }}">
+<form onSubmit="{{ r.saveNote }}" class="fb-in" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+<label style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #A3A3A3">Why did you make this move?
+<input value="{{ r.noteDraft }}" onChange="{{ r.onNote }}" placeholder="One line, for future you" style="min-height: 40px; padding: 0 10px; background: #2C2C2C; color: #F7F7F7; border: 1px solid #424242; border-radius: 8px; font: inherit; font-size: 14px"></label>
+<span style="display: flex; gap: 6px; align-self: flex-end"><button type="submit" class="fb-btn" style="min-height: 40px; padding: 0 12px; border: 0; border-radius: 8px; background: #F7F7F7; color: #181818; font: inherit; font-weight: 600; font-size: 13px">Save</button><button type="button" class="fb-btn" onClick="{{ r.cancelNote }}" style="min-height: 40px; padding: 0 10px; border: 0; background: transparent; color: #A3A3A3; font: inherit; font-size: 13px">Cancel</button></span>
+</form>
+</sc-if>
+<sc-if value="{{ r.notEditing }}" hint-placeholder-val="{{ true }}">
+<sc-if value="{{ r.hasNote }}" hint-placeholder-val="{{ false }}"><button type="button" class="fb-btn" onClick="{{ r.openNote }}" style="min-height: 32px; padding: 0; background: transparent; border: 0; color: #D6D6D6; font: inherit; font-size: 13px; font-style: italic; text-align: left">“{{ r.note }}” <span style="font-style: normal; color: #A3A3A3; text-decoration: underline">Edit</span></button></sc-if>
+<sc-if value="{{ r.noNote }}" hint-placeholder-val="{{ true }}"><button type="button" class="fb-btn" onClick="{{ r.openNote }}" style="min-height: 32px; padding: 0; background: transparent; border: 0; color: #A3A3A3; font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px">+ Why did you make this move?</button></sc-if>
+</sc-if>
+</div>
+</sc-if>
+</li>
+</sc-for>
+</ul>
+</section>
+</main>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"record":{"editor":"enum","options":["populated","early"],"default":"populated"},"shirts":{"editor":"enum","options":["club","neutral"],"default":"club"},"deadline":{"editor":"text","default":"2026-11-21T11:00:00Z"},"$preview":{"width":1440,"height":1900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { view: (this.props && this.props.startView) || 'week', sel: 'transfer', tab: 'counter', panelOpen: false, alt: -1, capAlt: false, outcome: null, checking: 0, draft: '', now: Date.now(), refreshing: false, generated: '16 Nov, 13:10', newsShow: false, newsOpen: true, pitch: 'before', shownXp: 0, flash: '', pk: 0, recGw: 0, recFilter: 'all', notes: {}, noteOpen: null, noteDraft: '', recShown: 0, recAgent: 0 };
+  }
+  componentDidMount() {
+    this.reduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.clock = setInterval(() => this.setState({ now: Date.now() }), 1000);
+    if (this.reduced) { this.setState({ pitch: 'after', shownXp: this.total('after'), newsShow: true }); return; }
+    this.setState({ shownXp: this.total('before') });
+    this.t1 = setTimeout(() => this.setPitch('after'), 1100);
+    this.t2 = setTimeout(() => this.setState({ newsShow: true }), 1800);
+  }
+  componentWillUnmount() { clearInterval(this.recT); clearInterval(this.clock); clearInterval(this.xpT); clearInterval(this.ckT); clearTimeout(this.t1); clearTimeout(this.t2); clearTimeout(this.rt); clearTimeout(this.ft); }
+  countdown() {
+    const end = Date.parse(this.props.deadline ?? '2026-11-21T11:00:00Z');
+    let s = Math.max(0, Math.floor((end - this.state.now) / 1000));
+    if (!isFinite(s)) return '--';
+    const d = Math.floor(s / 86400); s -= d * 86400;
+    const h = Math.floor(s / 3600); s -= h * 3600;
+    const m = Math.floor(s / 60); s -= m * 60;
+    const p = (n) => String(n).padStart(2, '0');
+    return (d > 0 ? d + 'd ' : '') + p(h) + 'h ' + p(m) + 'm ' + p(s) + 's';
+  }
+  altGw() {
+    return [['Alysson', 'AVL', 4.6], ['E. Le Fée', 'SUN', 3.9], ['Palmer', 'CHE', 8.4]];
+  }
+  slots(altIdx) {
+    const a = altIdx === undefined ? this.state.alt : altIdx;
+    const mid1 = a >= 0 ? this.altGw()[a] : ['Wirtz', 'LIV', 7.0];
+    return [
+      ['GK', [['Verbruggen', 'BHA', 6.3, true], ['Verbruggen', 'BHA', 6.3, true]]],
+      ['DEF', [['Jacquet', 'LIV', 4.7], ['Jacquet', 'LIV', 4.7]], [['Robinson', 'FUL', 4.3], ['Robinson', 'FUL', 4.3]], [['Calafiori', 'ARS', 4.3], ['Calafiori', 'ARS', 4.3]], [['Kostoulas', 'BHA', 2.0], ['Branthwaite', 'EVE', 4.0]]],
+      ['MID', [['Schade', 'BRE', 1.5], mid1], [['Tavernier', 'BOU', 5.3], ['Tavernier', 'BOU', 5.3]], [['Rogers', 'CHE', 4.0], ['Rogers', 'CHE', 4.0]], [['Manzambi', 'AVL', 1.9], ['Iwobi', 'FUL', 3.7]]],
+      ['FWD', [['N. Jackson', 'AVL', 11.0], ['N. Jackson', 'AVL', 11.0]], [['Evanilson', 'BOU', 8.0], ['Evanilson', 'BOU', 8.0]]]
+    ];
+  }
+  xiList(mode, altIdx) {
+    const k = mode === 'after' ? 1 : 0;
+    const out = [];
+    this.slots(altIdx).forEach((row) => row.slice(1).forEach((s) => out.push(s[k])));
+    return out;
+  }
+  armband(mode, altIdx) {
+    const l = this.xiList(mode, altIdx).filter((p) => !p[3]).slice().sort((x, y) => y[2] - x[2]);
+    return { c: l[0], v: l[1] };
+  }
+  total(mode, altIdx) {
+    const l = this.xiList(mode, altIdx);
+    let t = l.reduce((a, p) => a + p[2], 0);
+    t += this.armband(mode, altIdx).c[2];
+    return Math.round(t * 10);
+  }
+  setPitch(mode, altIdx) {
+    clearInterval(this.xpT);
+    this.setState({ pitch: mode, pk: this.state.pk + 1 });
+    const target = this.total(mode, altIdx);
+    if (this.reduced) { this.setState({ shownXp: target }); return; }
+    this.xpT = setInterval(() => {
+      const s = this.state.shownXp;
+      if (s === target) { clearInterval(this.xpT); return; }
+      const step = Math.max(1, Math.round(Math.abs(target - s) / 6));
+      this.setState({ shownXp: s + (target > s ? Math.min(step, target - s) : -Math.min(step, s - target)) });
+    }, 45);
+  }
+  sendCounter(k) {
+    clearInterval(this.ckT);
+    if (this.reduced) { this.setState({ outcome: k, checking: 0 }); return; }
+    this.setState({ outcome: null, checking: 1, pendingOutcome: k });
+    this.ckT = setInterval(() => {
+      const c = this.state.checking + 1;
+      if (c > 3) { clearInterval(this.ckT); this.setState({ checking: 0, outcome: this.state.pendingOutcome }); return; }
+      this.setState({ checking: c });
+    }, 650);
+  }
+  recData() {
+    const early = (this.props.record ?? 'populated') === 'early';
+    const T = (gw, label, tag, line, d, extra) => ({ gw, kind: 'transfer', label, tag: tag || '', line, d, ...(extra || {}) });
+    const C = (gw, label, line, d, extra) => ({ gw, kind: 'captain', label, tag: '', line, d, ...(extra || {}) });
+    if (early) {
+      return {
+        early: true,
+        bars: [{ gw: 9, d: null }],
+        items: [
+          T(9, 'IGNORED, TRANSFERRED', '', 'Sold B. Fernandes · bought Manzambi', null, { pending: 1, window: 'GW10\u2013GW12', agent: 'Agent said: save the transfer' })
+        ],
+        impact: null, followed: '0 / 1', agentIf: null, counters: null,
+        tags: []
+      };
+    }
+    return {
+      early: false,
+      bars: [{ gw: 4, d: 10 }, { gw: 5, d: -5 }, { gw: 6, d: 13 }, { gw: 7, d: 0 }, { gw: 8, d: 3, fresh: true }, { gw: 9, d: null }, { gw: 10, d: null }],
+      items: [
+        T(10, 'FOLLOWED · SAVED', '', 'Rolled the transfer, as suggested', null, { unscored: true }),
+        T(9, 'IGNORED, TRANSFERRED', '', 'Sold B. Fernandes · bought Manzambi', null, { pending: 1, window: 'GW10–GW12', agent: 'Agent said: save the transfer' }),
+        T(8, 'FOLLOWED', 'Safe', 'Sold Saka (12) · bought Palmer (15)', 3, { fresh: true }),
+        C(8, 'FOLLOWED', 'Captained N. Jackson: 16, same as the agent', 0, { same: true }),
+        T(7, 'IGNORED, ROLLED', '', 'You rolled. Agent’s pick, Watkins → Bowen, would have scored +4', 0, { agent: 'Agent’s pick: +4' }),
+        C(7, 'YOUR OWN PICK', 'Captained Haaland: 4. Agent’s pick, Saka: 13', -9),
+        T(6, 'FOLLOWED', 'Bold', 'Sold Cunha (8) · bought Semenyo (21)', 13, { note: 'Went Bold for once. Worth it.' }),
+        T(5, 'YOUR OWN MOVE', '', 'Sold Gordon (11) · bought Kudus (6)', -5, { agent: 'Agent’s pick, Mbeumo, scored +7' }),
+        T(4, 'FOLLOWED', 'Balanced', 'Sold Isak (9) · bought Wood (19)', 10),
+        { gw: 3, kind: 'chip', label: 'FOLLOWED', tag: '', line: 'Triple Captain on Haaland, in the week the agent flagged', d: 14, extraLabel: 'extra' }
+      ],
+      impact: 21, followed: '4 / 7', agentIf: 37,
+      counters: { agent: 7, you: 4, rows: [['Agent held, you followed', '5 · agent right 4'], ['Agent held, you ignored', '3 · you right 2'], ['Agent changed its pick', '3 · change right 2']] },
+      tags: [['Bold', 13], ['Balanced', 10], ['Safe', 3], ['Your own moves', -5]]
+    };
+  }
+  openRecord() {
+    clearInterval(this.recT);
+    const data = this.recData();
+    this.setState({ view: 'record', recShown: 0, recAgent: 0 });
+    if (data.impact == null) return;
+    if (this.reduced) { this.setState({ recShown: data.impact, recAgent: data.agentIf }); return; }
+    this.recT = setInterval(() => {
+      const a = this.state.recShown, b = this.state.recAgent;
+      if (a >= data.impact && b >= data.agentIf) { clearInterval(this.recT); return; }
+      this.setState({ recShown: Math.min(data.impact, a + 1), recAgent: Math.min(data.agentIf, b + 2) });
+    }, 40);
+  }
+  recVals() {
+    const st = this.state;
+    const data = this.recData();
+    const sel = st.recGw;
+    const fmt = (d) => d == null ? '' : (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d);
+    const maxAbs = 14;
+    const bars = data.bars.map((b, i) => {
+      const pending = b.d == null;
+      const h = pending ? 26 : Math.max(4, Math.round(Math.abs(b.d) / maxAbs * 90));
+      const on = sel === b.gw;
+      const col = pending ? 'transparent' : b.d > 0 ? '#4CAF7A' : b.d < 0 ? '#E5534B' : '#6B6B6B';
+      const bar = 'width: 70%; max-width: 44px; border-radius: 6px; transform-origin: ' + (b.d < 0 ? 'top' : 'bottom') + '; animation: fbGrow .6s cubic-bezier(.2,.7,.2,1) both; animation-delay: ' + (i * 70) + 'ms; background: ' + col + '; height: ' + h + 'px; ' + (pending ? 'border: 1.5px dashed #6B6B6B; box-sizing: border-box;' : '') + (on ? ' outline: 2px solid #F7F7F7; outline-offset: 2px;' : '');
+      return {
+        gw: 'GW' + b.gw, label: pending ? 'pending' : fmt(b.d), up: pending || b.d >= 0, down: !pending && b.d < 0,
+        bar, fresh: !!b.fresh, sel: on ? 'true' : 'false',
+        aria: 'GW' + b.gw + ': ' + (pending ? 'pending' : fmt(b.d) + ' points'),
+        pick: () => this.setState({ recGw: on ? 0 : b.gw })
+      };
+    });
+    const filters = [['all', 'All'], ['transfer', 'Transfers'], ['captain', 'Captain'], ['chip', 'Chips']].map(([k, label]) => {
+      const on = (st.recFilter || 'all') === k;
+      return { label, sel: on ? 'true' : 'false', pick: () => this.setState({ recFilter: k }), style: 'min-height: 36px; padding: 0 12px; border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer; color: ' + (on ? '#181818' : '#F7F7F7') + '; background: ' + (on ? '#F7F7F7' : 'transparent') + '; border: 1px solid ' + (on ? '#F7F7F7' : '#424242') };
+    });
+    const notes = st.notes || {};
+    const items = data.items
+      .filter((r) => (st.recFilter || 'all') === 'all' || r.kind === st.recFilter)
+      .filter((r) => !sel || r.gw === sel)
+      .map((r, i) => {
+        const key = r.kind + r.gw;
+        const pending = r.pending != null;
+        const dots = [0, 1, 2].map((k) => ({ style: 'width: 8px; height: 8px; border-radius: 50%; background: ' + (k < (r.pending || 0) ? '#8A93A6' : 'transparent') + '; border: 1.5px solid #8A93A6; box-sizing: border-box' }));
+        const note = notes[key] !== undefined ? notes[key] : (r.note || '');
+        const kindLabel = { transfer: 'TRANSFER', captain: 'CAPTAIN', chip: 'CHIP' }[r.kind];
+        return {
+          gw: 'GW' + r.gw, kind: kindLabel, label: r.label, tag: r.tag, hasTag: !!r.tag, line: r.line,
+          pending, dots, window: r.window || '', agent: r.agent || '', hasAgent: !!r.agent,
+          unscored: !!r.unscored, scored: !pending && !r.unscored,
+          delta: r.same ? 'same' : fmt(r.d) + (r.extraLabel ? ' ' + r.extraLabel : ''),
+          deltaStyle: 'font-family: "IBM Plex Mono", monospace; font-size: 20px; font-weight: 600; color: ' + (r.same ? '#A3A3A3' : r.d > 0 ? '#4CAF7A' : r.d < 0 ? '#E5534B' : '#A3A3A3'),
+          fresh: !!r.fresh, cls: r.fresh ? 'fb-settle' : 'fb-in', style: 'animation-delay: ' + (i * 50) + 'ms',
+          canNote: r.kind === 'transfer' && !r.unscored,
+          note, hasNote: !!note, noNote: !note, editing: st.noteOpen === key, notEditing: st.noteOpen !== key,
+          openNote: () => this.setState({ noteOpen: key, noteDraft: note }),
+          noteDraft: st.noteDraft || '', onNote: (e) => this.setState({ noteDraft: e.target.value.slice(0, 140) }),
+          saveNote: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ notes: { ...notes, [key]: (st.noteDraft || '').trim() }, noteOpen: null }); },
+          cancelNote: () => this.setState({ noteOpen: null })
+        };
+      });
+    const fmtS = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+    const tagMax = 13;
+    const tags = data.tags.map(([t, v]) => ({ name: t, v: fmtS(v), bar: 'display: block; height: 8px; border-radius: 4px; transform-origin: left; animation: fbBar .7s cubic-bezier(.2,.7,.2,1) both; background: ' + (v >= 0 ? '#4CAF7A' : '#E5534B') + '; width: ' + Math.round(Math.abs(v) / tagMax * 100) + '%' }));
+    const ctr = data.counters;
+    const seg = (n, bg, fg) => 'display: flex; align-items: center; padding: 0 12px; font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 600; white-space: nowrap; flex: ' + n + ' 1 0; background: ' + bg + '; color: ' + fg;
+    return {
+      recEarly: data.early, recFull: !data.early,
+      recImpact: data.impact == null ? 'pending' : fmtS(st.recShown || 0),
+      recImpactStyle: 'font-family: "IBM Plex Mono", monospace; font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: ' + (data.impact == null ? '#8A93A6' : '#4CAF7A'),
+      recAgent: data.agentIf == null ? '' : fmtS(st.recAgent || 0), hasAgentIf: data.agentIf != null,
+      recFollowed: data.followed,
+      recBars: bars, recSelLabel: sel ? 'Showing GW' + sel + ' · ' : '', hasRecSel: !!sel, clearRecSel: () => this.setState({ recGw: 0 }),
+      recFilters: filters, recItems: items, recEmpty: items.length === 0,
+      recTags: tags, hasTags: tags.length > 0,
+      hasCounters: !!ctr, ctrAgent: ctr ? ctr.agent : 0, ctrYou: ctr ? ctr.you : 0,
+      ctrAgentStyle: ctr ? seg(ctr.agent, '#F7F7F7', '#181818') : '', ctrYouStyle: ctr ? seg(ctr.you, '#5E5E5E', '#FFFFFF') : '',
+      ctrRows: ctr ? ctr.rows.map(([a, b]) => ({ a, b })) : []
+    };
+  }
+  renderVals() {
+    const st = this.state;
+    const neutral = (this.props.shirts ?? 'club') === 'neutral';
+    const chip = (opp, fdr) => {
+      const bg = { 2: '#2E7D55', 3: '#5E5E5E', 4: '#C4362F', 5: '#8E2420' }[fdr];
+      const ha = opp.slice(-1) === 'H' ? 'home' : 'away';
+      return { label: opp, title: opp.slice(0, 3) + ', ' + ha + ' · difficulty ' + fdr + ' of 5', style: 'display: inline-flex; align-items: center; min-height: 22px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-family: "IBM Plex Mono", monospace; cursor: help; background: ' + bg + '; color: #FFFFFF', aria: opp + ', difficulty ' + fdr };
+    };
+    const tagStyle = 'display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border: 1px solid #6B6B6B; border-radius: 6px; font-size: 11px; color: #F7F7F7';
+    const kit = {
+      BHA: ['#0057B8', '#FFFFFF', true], LIV: ['#C8102E', '#C8102E', false], FUL: ['#F2F2F2', '#181818', false], ARS: ['#DB0007', '#FFFFFF', false],
+      EVE: ['#1B45A8', '#1B45A8', false], BOU: ['#DA291C', '#181818', true], CHE: ['#034694', '#034694', false], AVL: ['#670E36', '#95BFE5', false],
+      NEW: ['#181818', '#F2F2F2', true], BRE: ['#E30613', '#FFFFFF', true], SUN: ['#EB172B', '#FFFFFF', true], BRE_GK: ['#2BB0A6', '#2BB0A6', false], BHA_GK: ['#E8C547', '#E8C547', false]
+    };
+    const shirt = (club, gk) => {
+      const k = kit[gk ? club + '_GK' : club] || ['#5E5E5E', '#5E5E5E', false];
+      if (neutral) { const g = gk ? '#8A8A8A' : '#4A4A4A'; return { body: g, sleeve: g, stripe: g }; }
+      return { body: k[0], sleeve: k[2] ? k[0] : k[1], stripe: k[2] ? k[1] : k[0] };
+    };
+    const after = st.pitch === 'after';
+    const tileBase = 'position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px 6px; border-radius: 10px; background: rgba(24,24,24,0.85); ';
+    const statusMap = {
+      in: ['↑ IN', '#4CAF7A'], preview: ['PREVIEW', '#A3A3A3'], fresh: ['NEW SIGNING', '#4CAF7A'], out: ['↓ TO BENCH', '#E5534B'], sell: ['→ SELL', '#E5534B'], benched: ['↓ BENCHED', '#E5534B']
+    };
+    let idx = 0;
+    const mkP = (p, status, badge, changed) => {
+      const sh = shirt(p[1], p[3]);
+      const sm = statusMap[status];
+      const ring = sm ? sm[1] : 'transparent';
+      const ringStyle = status === 'preview' ? 'dashed' : 'solid';
+      const delay = (idx++) * 40;
+      return {
+        name: p[0], club: p[1], xp: p[2].toFixed(1), isC: badge === 'C', isV: badge === 'V',
+        hasStatus: !!sm, statusText: sm ? sm[0] : '', statusStyle: 'font-size: 10px; font-weight: 600; letter-spacing: 0.04em; color: ' + (sm ? sm[1] : '#A3A3A3'),
+        body: sh.body, sleeve: sh.sleeve, stripe: sh.stripe,
+        cls: changed ? 'fb-flip' : 'fb-in',
+        tile: tileBase + 'border: 1.5px ' + ringStyle + ' ' + ring + '; animation-delay: ' + (changed ? 120 + delay : delay) + 'ms',
+        aria: p[0] + ', ' + p[1] + ', ' + p[2] + ' expected points' + (badge === 'C' ? ', captain' : badge === 'V' ? ', vice-captain' : '') + (sm ? ', ' + sm[0].replace(/[↑↓→] /, '').toLowerCase() : '')
+      };
+    };
+    const arm = this.armband(st.pitch);
+    const xi = this.slots().map((row) => ({
+      pos: row[0],
+      players: row.slice(1).map((s) => {
+        const changed = s[0][0] !== s[1][0];
+        const p = after ? s[1] : s[0];
+        let status = '';
+        if (changed) status = after ? (p[0] === 'Wirtz' ? 'fresh' : (s[0][0] === 'Schade' ? 'preview' : 'in')) : (p[0] === 'Schade' ? 'sell' : 'out');
+        const badge = p[0] === arm.c[0] ? 'C' : p[0] === arm.v[0] ? 'V' : '';
+        return mkP(p, status, badge, changed && after);
+      })
+    }));
+    const benchList = after
+      ? [[['Hall', 'NEW', 3.7], ''], [['Kostoulas', 'BHA', 2.0], 'benched'], [['Manzambi', 'AVL', 1.9], 'benched'], [['Kelleher', 'BRE', 3.7, true], '']]
+      : [[['Hall', 'NEW', 3.7], ''], [['Branthwaite', 'EVE', 4.0], 'in'], [['Iwobi', 'FUL', 3.7], 'in'], [['Kelleher', 'BRE', 3.7, true], '']];
+    const bench = benchList.map((b, i) => ({ ...mkP(b[0], b[1] === 'in' ? '' : b[1], '', !!b[1] && after), n: String(i + 1), hasStatus: !!b[1] && after, statusText: after && b[1] ? '↓ BENCHED' : '' }));
+    const xpNow = (st.shownXp / 10).toFixed(1);
+    const delta = (this.total('after') - this.total('before')) / 10;
+    const pv = st.alt >= 0 ? this.altGw()[st.alt][0] : '';
+    const pitchTabs = [['before', 'Now'], ['after', 'After the brief']].map(([k, label]) => {
+      const on = st.pitch === k;
+      return { label, sel: on ? 'true' : 'false', pick: () => { clearTimeout(this.t1); this.setPitch(k); }, style: 'min-height: 34px; padding: 0 12px; border: 0; border-radius: 6px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; color: ' + (on ? '#181818' : '#A3A3A3') + '; background: ' + (on ? '#F7F7F7' : 'transparent') };
+    });
+    const legend = after
+      ? [['#4CAF7A', 'In: Branthwaite, Iwobi · ' + (pv ? 'Previewing: ' + pv : 'New signing: Wirtz')], ['#E5534B', 'Benched: Kostoulas, Manzambi']]
+      : [['#E5534B', 'Leaving the XI: Schade (sell), Kostoulas, Manzambi']];
+    const legendItems = legend.map(([c, t]) => ({ text: t, sw: 'width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid ' + c }));
+
+    const altsData = [
+      { name: 'Alysson', meta: 'AVL · MID · £4.9m', club: 'AVL', tag: 'Balanced', xp: 12.1, fixtures: [chip('SUN H', 2), chip('IPS A', 2), chip('EVE H', 3)], reason: 'Best points per pound of any option at £4.9m. Two easy fixtures next, and it leaves £6.6m in the bank.', bank: '£6.6m' },
+      { name: 'E. Le Fée', meta: 'SUN · MID · £5.7m', club: 'SUN', tag: 'Balanced', xp: 11.4, fixtures: [chip('AVL A', 3), chip('TOT H', 3), chip('LIV A', 4)], reason: 'In form at 7.3 points per game. A balanced option if you want to keep budget for next week.', bank: '£5.8m' },
+      { name: 'Palmer', meta: 'CHE · MID · £9.8m', club: 'CHE', tag: 'Safe', xp: 13.0, fixtures: [chip('LEE H', 3), chip('NFO A', 2), chip('CRY H', 2)], reason: 'Nailed starter on penalties: the highest floor of the four. Costs £2.6m more than Wirtz for fewer expected points.', bank: '£1.7m' }
+    ];
+    const top = { name: 'Wirtz', meta: 'LIV · MID · £7.2m', club: 'LIV', tag: 'Bold', xp: 14.1, fixtures: [chip('MUN H', 3), chip('EVE A', 3), chip('SUN H', 2)], reason: 'Projects 14.1 points over 3 GWs, more than three times Schade. Form 7.0, two average fixtures and one easy. At £7.2m he leaves £4.3m in the bank for next week.', bank: '£4.3m' };
+    const cur = st.alt >= 0 ? altsData[st.alt] : top;
+    const d = Math.round((cur.xp - top.xp) * 10) / 10;
+    const pick = {
+      name: cur.name, meta: cur.meta, tag: cur.tag, xp: cur.xp.toFixed(1), fixtures: cur.fixtures, reason: cur.reason, bank: cur.bank,
+      slot: st.alt >= 0 ? 'PREVIEWING' : 'TOP PICK', previewing: st.alt >= 0,
+      deltaText: d === 0 ? '' : (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1) + ' xP vs Wirtz',
+      shirt: shirt(cur.club), key: cur.name,
+      border: 'border: 1.5px ' + (st.alt >= 0 ? 'dashed #A3A3A3' : 'solid #FF8A1F')
+    };
+    const alts = altsData.map((a, i) => ({ ...a, xp: a.xp.toFixed(1), n: String(i + 2), open: st.alt === i, sign: st.alt === i ? '−' : '+', tagStyle, toggle: () => { const n = st.alt === i ? -1 : i; clearTimeout(this.t1); this.setState({ alt: n }); this.setPitch('after', n); }, rowStyle: 'border-radius: 10px; background: ' + (st.alt === i ? '#2F2F2F' : '#232323') + '; outline: ' + (st.alt === i ? '1px solid #6B6B6B' : 'none') }));
+
+    const armA = this.armband('after');
+    const capInfo = {
+      'N. Jackson': { meta: 'AVL · vs SUN (H)', cReason: 'Your highest ceiling after the transfer: at home to SUN, in strong form.', vReason: '' },
+      'Evanilson': { meta: 'BOU · vs NFO (H)', cReason: '', vReason: 'Second-highest GW11 projection. Takes the armband if Jackson doesn’t play.' },
+      'Palmer': { meta: 'CHE · vs LEE (H)', cReason: '', vReason: 'On penalties at home to LEE: 8.4 projected, just above Evanilson. Takes the armband if Jackson doesn’t play.' }
+    };
+    const cap = { name: armA.c[0], xp: armA.c[2].toFixed(1), meta: (capInfo[armA.c[0]] || {}).meta || armA.c[1], reason: (capInfo[armA.c[0]] || {}).cReason || 'Highest GW11 projection in your XI.' };
+    const vice = { name: armA.v[0], xp: armA.v[2].toFixed(1), meta: (capInfo[armA.v[0]] || {}).meta || armA.v[1], reason: (capInfo[armA.v[0]] || {}).vReason || 'Second-highest GW11 projection in your XI.' };
+    const capChanged = armA.v[0] !== 'Evanilson' || armA.c[0] !== 'N. Jackson';
+    const capNote = pv ? (capChanged ? 'Updated for the ' + pv + ' preview: ' + vice.name + ' is now vice.' : 'No change with ' + pv + ': Jackson and Evanilson stay.') : '';
+    const panelAt = (key, tab) => () => this.setState({ sel: key, tab, outcome: null, checking: 0, panelOpen: true });
+    const flashTo = (key) => () => { clearTimeout(this.ft); this.setState({ sel: key === 'chips' ? st.sel : key, flash: key }); this.ft = setTimeout(() => this.setState({ flash: '' }), 1300); };
+    const moves = [
+      { key: 'transfer', label: 'Transfer', main: 'Schade → ' + (pv || 'Wirtz'), sub: pv ? 'Preview · not the agent’s pick' : 'Bold · +9.6 xP over 3 GWs', href: '#transfer' },
+      { key: 'captain', label: 'Captain', main: cap.name, sub: 'Vice: ' + vice.name, href: '#captain' },
+      { key: 'lineup', label: 'Lineup', main: '3 changes', sub: 'Start Branthwaite, Iwobi', href: '#lineup' },
+      { key: 'chips', label: 'Chip', main: 'Save them', sub: '3 available', href: '#chips' }
+    ].map((m, i) => ({ ...m, n: String(i + 1), go: flashTo(m.key), delay: (i * 70) + 'ms' }));
+    const secCls = (key) => 'fb-in' + (st.flash === key ? ' fb-flash' : '');
+    const weak = [['Schade', 4.5], ['Iwobi', 6.1], ['Rogers', 7.2]].map(([name, v], i) => ({ name, v: v.toFixed(1), bar: 'height: 8px; border-radius: 4px; transform-origin: left; animation: fbBar .7s cubic-bezier(.2,.7,.2,1) both; animation-delay: ' + (300 + i * 120) + 'ms; background: ' + (i === 0 ? '#F26A3D' : '#5E5E5E') + '; width: ' + Math.round(v / 8 * 100) + '%' }));
+    const traceSteps = [['get_squad', '15 players · £5.4m in the bank'], ['get_news', 'No flags in your XI'], ['get_fixtures', 'Next 3 GWs for 20 clubs'], ['get_my_track_record', 'Last 3 Bold picks: +11'], ['search_candidates', '38 MIDs under £11.5m'], ['compare', 'Wirtz vs Alysson vs Le Fée vs Palmer'], ['check_constraints', 'Budget, 3 per club: legal'], ['get_player', 'N. Jackson: 11.0 xP'], ['compare', 'Jackson vs Evanilson vs Tavernier'], ['get_fixtures', 'Bench: GW11 opponents'], ['compare', 'Lineup: 3 changes'], ['check_constraints', 'Final squad: legal']].map((t, i) => ({ n: String(i + 1).padStart(2, '0'), tool: t[0], result: t[1], style: 'animation-delay: ' + (i * 50) + 'ms' }));
+    const replySets = {
+      transfer: [['hold', 'Why not Saka?'], ['fact', 'Schade trained today'], ['pref', 'Keep Schade']],
+      captain: [['hold', 'Why not Haaland?'], ['fact', 'Jackson is a doubt'], ['pref', 'I want Evanilson']],
+      lineup: [['hold', 'Why bench Manzambi?'], ['fact', 'Hall is injured'], ['pref', 'Keep my XI']]
+    };
+    const outcomes = {
+      hold: { badge: 'HOLDS', text: 'Still the same pick. I re-checked fixtures and form; nothing changes the order.' },
+      fact: { badge: 'CHANGES FOR A NEW FACT', text: 'You’re right: get_news now shows the update. New pick saved to this card. The original stays on your record.' },
+      pref: { badge: 'ACCEPTS YOUR PREFERENCE', text: 'Your call. Here is the best move with that locked in. We’ll score both after 3 GWs.' }
+    };
+    const replies = (replySets[st.sel] || []).map(([k, label]) => ({ label, pick: () => this.sendCounter(k) }));
+    const checkSteps = [['get_news', 'Latest availability'], ['get_fixtures', 'Next 3 GWs'], ['compare', 'Your option vs the pick']].map((c, i) => {
+      const done = st.checking > i + 1, active = st.checking === i + 1;
+      return { tool: c[0], result: done ? c[1] : '', active, done, dot: 'width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box; border: 2px ' + (active ? 'dashed #FF8A1F' : 'solid ' + (done ? '#4CAF7A' : '#424242')) + '; background: ' + (done ? '#4CAF7A' : 'transparent') };
+    });
+    const tabs = [['counter', 'Counter'], ['trace', 'Trace']].map(([k, label]) => {
+      const on = st.tab === k;
+      return { label, sel: on ? 'true' : 'false', pick: () => this.setState({ tab: k }), style: 'flex: 1; min-height: 40px; border: 0; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; color: ' + (on ? '#181818' : '#A3A3A3') + '; background: ' + (on ? '#F7F7F7' : 'transparent') };
+    });
+    const nav = [['week', 'This week'], ['record', 'Record']].map(([k, label]) => {
+      const on = st.view === k;
+      return { label, cur: on ? 'page' : 'false', pick: () => (k === 'record' ? this.openRecord() : this.setState({ view: k })), style: 'min-height: 40px; padding: 0 14px; border: 0; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; color: ' + (on ? '#F7F7F7' : '#A3A3A3') + '; background: ' + (on ? '#383838' : 'transparent') };
+    });
+    const receipts = [
+      { gw: 'GW9', label: 'IGNORED', line: 'B. Fernandes → Manzambi', status: 'Pending', window: 'Settles after GW12', note: true },
+      { gw: 'GW10', label: 'SAVED', line: 'Rolled the transfer', status: 'Pending', window: 'Settles after GW13', note: false }
+    ];
+    const selStyle = (key) => 'background: #2C2C2C; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 140px; border: 1px solid ' + (st.sel === key && st.panelOpen ? '#A3A3A3' : '#424242');
+    return {
+      isWeek: st.view === 'week', isRecord: st.view === 'record', nav, goRecord: () => this.openRecord(),
+      countdown: this.countdown(),
+      refreshing: st.refreshing, notRefreshing: !st.refreshing,
+      refreshLabel: st.refreshing ? 'Refreshing…' : 'Refresh brief', generated: st.generated,
+      refresh: () => { if (st.refreshing) return; this.setState({ refreshing: true }); this.rt = setTimeout(() => { this.setState({ refreshing: false, generated: 'just now', pitch: 'before', shownXp: this.total('before') }); this.t1 = setTimeout(() => this.setPitch('after'), 700); }, this.reduced ? 300 : 1800); },
+      newsOpen: st.newsOpen && st.newsShow, closeNews: () => this.setState({ newsOpen: false }),
+      reCheck: () => { flashTo('captain')(); this.setState({ sel: 'captain', tab: 'counter', outcome: null, checking: 0, panelOpen: true }); },
+      moves,
+      transferStyle: selStyle('transfer'), captainStyle: selStyle('captain'),
+      clsMoves: 'fb-in', clsLineup: secCls('lineup'), clsTransfer: secCls('transfer'), clsCaptain: secCls('captain'), clsChips: secCls('chips'),
+      schadeFx: [chip('EVE H', 3), chip('MUN A', 3), chip('ARS H', 4)],
+      tagStyle, alts, pick, resetPick: () => { this.setState({ alt: -1 }); this.setPitch('after', -1); },
+      counterTransfer: panelAt('transfer', 'counter'), traceTransfer: panelAt('transfer', 'trace'),
+      counterCaptain: panelAt('captain', 'counter'), traceCaptain: panelAt('captain', 'trace'),
+      counterLineup: panelAt('lineup', 'counter'), traceLineup: panelAt('lineup', 'trace'),
+      capAlt: st.capAlt, capAltSign: st.capAlt ? '−' : '+', toggleCapAlt: () => this.setState({ capAlt: !st.capAlt }),
+      xi, bench, sellShirt: shirt('BRE'), pitchTabs, legendItems,
+      pkEven: st.pk % 2 === 0, pkOdd: st.pk % 2 === 1,
+      swipeStart: (e) => { this.sx = e.clientX; this.sy = e.clientY; },
+      swipeEnd: (e) => { if (this.sx == null) return; const dx = e.clientX - this.sx, dy = e.clientY - this.sy; this.sx = null; if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { clearTimeout(this.t1); this.setPitch(dx < 0 ? 'after' : 'before'); } },
+      cap, vice, capNote, hasCapNote: !!capNote, capNoteStyle: 'font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 1px dashed #6B6B6B; color: ' + (capChanged ? '#F7F7F7' : '#A3A3A3'),
+      xpNow, xpDelta: (delta > 0 ? '+' : '') + delta.toFixed(1), isAfter: after,
+      weak, isTrace: st.tab === 'trace', isCounter: st.tab === 'counter', tabs,
+      traceSteps, replies, checking: st.checking > 0, checkSteps,
+      hasOutcome: !!st.outcome, outcome: outcomes[st.outcome] || { badge: '', text: '' },
+      draft: st.draft, onDraft: (e) => this.setState({ draft: e.target.value.slice(0, 200) }), draftLen: st.draft.length + ' / 200',
+      sendDraft: (e) => { if (e && e.preventDefault) e.preventDefault(); if (st.draft.trim()) { this.setState({ draft: '' }); this.sendCounter('hold'); } },
+      panelOpen: st.panelOpen, closePanel: () => this.setState({ panelOpen: false }),
+      panelTitle: ({ transfer: 'TRANSFER', captain: 'CAPTAIN', lineup: 'LINEUP' })[st.sel] || '',
+      receipts,
+      ...this.recVals()
+    };
+  }
+}
+</script>
+</body>
+</html>

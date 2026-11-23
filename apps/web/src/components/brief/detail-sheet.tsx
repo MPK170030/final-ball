@@ -3,34 +3,10 @@
 import { useState } from 'react'
 import { XIcon, Loader2Icon } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TraceStepList } from './trace-step-list'
 import { cn } from '@/lib/utils'
 import type { TraceStep } from '@finalball/agent'
-import type {
-  TransferCardPayloadTransfer,
-  CaptainCardPayload,
-  DetailState,
-  CounterPhase,
-} from './types'
-
-const POS: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-      {children}
-    </p>
-  )
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-0.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-      {children}
-    </p>
-  )
-}
+import type { DetailState, CounterPhase } from './types'
 
 // ── Counter tab UI ─────────────────────────────────────────────────────────────
 
@@ -39,15 +15,17 @@ function CounterCompose({
   onSubmit,
   disabled,
   disabledReason,
+  countersLeft,
 }: {
   quickReplies: string[]
   onSubmit: (quickReply: string | null, message: string) => void
   disabled: boolean
   disabledReason?: string
+  countersLeft?: number
 }) {
   const [selected, setSelected] = useState<string | null>(null)
   const [text, setText] = useState('')
-  const MAX = 400
+  const MAX = 200
 
   const canSend = !disabled && (!!selected || text.trim().length > 0)
 
@@ -59,6 +37,17 @@ function CounterCompose({
 
   return (
     <div className="space-y-4 py-2">
+      <div className="space-y-1">
+        <p className="text-[13px] text-muted-foreground">
+          Push back on this pick. The agent re-checks with its tools before it answers.
+        </p>
+        {countersLeft !== undefined && (
+          <p className="text-[13px]">
+            <span className="text-foreground">{countersLeft} of 10 left this GW.</span>
+          </p>
+        )}
+      </div>
+
       {disabled && disabledReason && (
         <p className="rounded-[8px] bg-secondary/60 px-3 py-2.5 text-[13px] text-muted-foreground">
           {disabledReason}
@@ -87,32 +76,38 @@ function CounterCompose({
         </div>
       )}
 
-      <div className="relative">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value.slice(0, MAX))}
-          disabled={disabled}
-          placeholder="Say why you disagree, or add context..."
-          rows={4}
-          className="w-full resize-none rounded-[8px] border border-border bg-background px-3 py-2.5 text-[14px] leading-5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
-        />
-        <span
-          className={cn(
-            'pointer-events-none absolute bottom-2.5 right-3 font-mono text-[11px] tabular-nums',
-            text.length >= MAX ? 'text-warning' : 'text-muted-foreground',
-          )}
-        >
-          {text.length}/{MAX}
-        </span>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="ctr" className="text-[13px] font-medium text-foreground">
+          Or say it your way
+        </label>
+        <div className="relative">
+          <textarea
+            id="ctr"
+            value={text}
+            onChange={(e) => setText(e.target.value.slice(0, MAX))}
+            disabled={disabled}
+            placeholder="Say why you disagree, or add context..."
+            rows={4}
+            className="w-full resize-none rounded-[8px] border border-border bg-background px-3 py-2.5 text-[14px] leading-5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+          />
+          <span
+            className={cn(
+              'pointer-events-none absolute bottom-2.5 right-3 font-mono text-[11px] tabular-nums',
+              text.length >= MAX ? 'text-warning' : 'text-muted-foreground',
+            )}
+          >
+            {text.length}/{MAX}
+          </span>
+        </div>
       </div>
 
       <button
         type="button"
         onClick={handleSend}
         disabled={!canSend}
-        className="inline-flex min-h-[44px] items-center justify-center rounded-[8px] bg-primary px-5 text-[14px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+        className="inline-flex h-9 items-center rounded-[6px] bg-foreground px-3.5 text-[13px] font-semibold text-background hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-opacity"
       >
-        Send to agent
+        Send counter
       </button>
     </div>
   )
@@ -337,6 +332,7 @@ function CounterTab({
   onRegenerate,
   disabled,
   disabledReason,
+  countersLeft,
 }: {
   counterPhase: CounterPhase
   quickReplies: string[]
@@ -345,6 +341,7 @@ function CounterTab({
   onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   disabled: boolean
   disabledReason?: string
+  countersLeft?: number
 }) {
   if (counterPhase.phase === 'checking') {
     return <CounterChecking steps={counterPhase.steps} />
@@ -371,132 +368,8 @@ function CounterTab({
       onSubmit={onSubmit}
       disabled={disabled}
       disabledReason={disabledReason}
+      countersLeft={countersLeft}
     />
-  )
-}
-
-// ── Why Transfer ──────────────────────────────────────────────────────────────
-
-function WhyTransfer({ payload }: { payload: TransferCardPayloadTransfer }) {
-  return (
-    <div className="space-y-5 py-2">
-      {/* 1 · Why sell */}
-      <section>
-        <SectionLabel>1 · Why sell {payload.sell.player.web_name}</SectionLabel>
-        {payload.whySell ? (
-          <p className="mb-3 text-[15px] leading-[22px] text-foreground">{payload.whySell}</p>
-        ) : null}
-        {payload.whySellContext.length > 0 && (
-          <div className="space-y-2">
-            {payload.whySellContext.map((ws, i) => {
-              const isSell = ws.player.id === payload.sell.player.id
-              const pos = POS[ws.player.element_type] ?? '?'
-              const price = `£${(ws.player.now_cost / 10).toFixed(1)}m`
-              const flagText = ws.player.news ? ws.player.news.slice(0, 35) : null
-              const meta = [
-                ws.clubShortName ?? null,
-                flagText,
-                `Form ${ws.player.form}`,
-                `${ws.score.total.toFixed(1)} pts next 3`,
-              ]
-                .filter(Boolean)
-                .join(' · ')
-              return (
-                <div
-                  key={ws.player.id}
-                  className={cn(
-                    'rounded-[8px] border px-3 py-2.5',
-                    isSell ? 'border-[1.5px] border-foreground' : 'border-border',
-                  )}
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="flex items-baseline gap-2 min-w-0">
-                      <span className="shrink-0 w-4 font-mono text-[12px] text-muted-foreground tabular-nums">
-                        {i + 1}
-                      </span>
-                      <span className="text-[14px] leading-5 font-semibold text-foreground truncate">
-                        {ws.player.web_name}
-                      </span>
-                    </div>
-                    <span className="shrink-0 font-mono text-[12px] text-muted-foreground tabular-nums">
-                      {pos} · {price}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[12px] leading-[18px] text-muted-foreground">{meta}</p>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </section>
-
-      {/* 2 · Why top pick */}
-      <section>
-        <SectionLabel>2 · Why {payload.topPick.player.web_name}</SectionLabel>
-        {payload.topPickReason ? (
-          <p className="mb-3 text-[14px] leading-5 text-foreground">{payload.topPickReason}</p>
-        ) : null}
-        {(() => {
-          const rows = [
-            { label: 'Form', text: payload.topPickWhy.form },
-            { label: 'Next 3 Fixtures', text: payload.topPickWhy.fixtures },
-            { label: 'Price', text: payload.topPickWhy.price },
-            { label: 'Risks', text: payload.topPickWhy.risks },
-          ].filter(({ text }) => text)
-          return rows.length > 0 ? (
-            <div className="space-y-3">
-              {rows.map(({ label, text }) => (
-                <div key={label}>
-                  <FieldLabel>{label}</FieldLabel>
-                  <p className="text-[15px] leading-[22px] text-foreground">{text}</p>
-                </div>
-              ))}
-            </div>
-          ) : null
-        })()}
-      </section>
-    </div>
-  )
-}
-
-// ── Why Captain ───────────────────────────────────────────────────────────────
-
-function WhyCaptain({ payload }: { payload: CaptainCardPayload }) {
-  return (
-    <div className="space-y-5 py-2">
-      {/* 1 · Why captain */}
-      <section>
-        <SectionLabel>1 · Why {payload.captain.player.web_name}</SectionLabel>
-        {payload.captain.reason ? (
-          <p className="mb-3 text-[14px] leading-5 text-foreground">{payload.captain.reason}</p>
-        ) : null}
-        {(() => {
-          const rows = [
-            { label: 'Form', text: payload.captain.why.form },
-            { label: 'Fixture', text: payload.captain.why.fixture },
-            { label: 'Risks', text: payload.captain.why.risks },
-          ].filter(({ text }) => text)
-          return rows.length > 0 ? (
-            <div className="space-y-3">
-              {rows.map(({ label, text }) => (
-                <div key={label}>
-                  <FieldLabel>{label}</FieldLabel>
-                  <p className="text-[15px] leading-[22px] text-foreground">{text}</p>
-                </div>
-              ))}
-            </div>
-          ) : null
-        })()}
-      </section>
-
-      {/* 2 · Vice-captain */}
-      {payload.vc && (
-        <section>
-          <SectionLabel>2 · Vice-captain: {payload.vc.player.web_name}</SectionLabel>
-          <p className="text-[14px] leading-5 text-foreground">{payload.vc.reason}</p>
-        </section>
-      )}
-    </div>
   )
 }
 
@@ -505,11 +378,11 @@ function WhyCaptain({ payload }: { payload: CaptainCardPayload }) {
 interface PanelContentProps {
   label: string
   mainTitle: string
-  tab: 'why' | 'trace' | 'counter'
-  onTabChange: (tab: 'why' | 'trace' | 'counter') => void
+  tab: 'counter' | 'trace'
+  onTabChange: (tab: 'counter' | 'trace') => void
   onClose: () => void
-  whyContent: React.ReactNode
   traceSteps: TraceStep[]
+  counterTraceSteps?: string[]
   gameweek: number
   version: number
   counterPhase: CounterPhase
@@ -519,6 +392,7 @@ interface PanelContentProps {
   onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   counterDisabled: boolean
   counterDisabledReason?: string
+  countersLeft?: number
   closeButtonClass?: string
 }
 
@@ -528,8 +402,8 @@ function PanelContent({
   tab,
   onTabChange,
   onClose,
-  whyContent,
   traceSteps,
+  counterTraceSteps,
   gameweek,
   version,
   counterPhase,
@@ -539,12 +413,13 @@ function PanelContent({
   onRegenerate,
   counterDisabled,
   counterDisabledReason,
+  countersLeft,
   closeButtonClass = '',
 }: PanelContentProps) {
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       {/* Header: label + title + tabs + close */}
-      <div className="relative border-b border-border px-4 pt-5 pb-0 shrink-0">
+      <div className="relative border-b border-border px-4 pt-5 pb-3 shrink-0">
         <button
           type="button"
           onClick={onClose}
@@ -564,38 +439,31 @@ function PanelContent({
           {mainTitle}
         </p>
 
-        <Tabs
-          value={tab}
-          onValueChange={(v) => onTabChange(v as 'why' | 'trace' | 'counter')}
-        >
-          <TabsList variant="line" className="w-full justify-start gap-4 bg-transparent p-0">
-            <TabsTrigger
-              value="why"
-              className="px-0 pb-2.5 text-[14px] font-semibold text-muted-foreground data-active:border-b-2 data-active:border-primary data-active:text-foreground"
+        {/* Pill tabs */}
+        <div className="mb-3 flex gap-1 rounded-[10px] bg-background p-1" role="tablist">
+          {(['counter', 'trace'] as const).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              type="button"
+              aria-selected={tab === t}
+              onClick={() => onTabChange(t)}
+              className={cn(
+                'flex h-10 flex-1 items-center justify-center rounded-[6px] border-0 text-[14px] font-medium transition-colors',
+                tab === t
+                  ? 'bg-foreground text-background'
+                  : 'bg-transparent text-muted-foreground hover:text-foreground',
+              )}
             >
-              Why
-            </TabsTrigger>
-            <TabsTrigger
-              value="counter"
-              className="px-0 pb-2.5 text-[14px] font-semibold text-muted-foreground data-active:border-b-2 data-active:border-primary data-active:text-foreground"
-            >
-              Counter
-            </TabsTrigger>
-            <TabsTrigger
-              value="trace"
-              className="px-0 pb-2.5 text-[14px] font-semibold text-muted-foreground data-active:border-b-2 data-active:border-primary data-active:text-foreground"
-            >
-              How the agent decided
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Scrollable body */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
-        {tab === 'why' ? (
-          whyContent
-        ) : tab === 'counter' ? (
+        {tab === 'counter' ? (
           <CounterTab
             counterPhase={counterPhase}
             quickReplies={quickReplies}
@@ -604,6 +472,7 @@ function PanelContent({
             onRegenerate={onRegenerate}
             disabled={counterDisabled}
             disabledReason={counterDisabledReason}
+            countersLeft={countersLeft}
           />
         ) : (
           <div>
@@ -611,6 +480,23 @@ function PanelContent({
               Whole brief · GW {gameweek} · version {version}
             </p>
             <TraceStepList steps={traceSteps} />
+            {counterTraceSteps && counterTraceSteps.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-border">
+                <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                  Counter steps
+                </p>
+                <ol className="space-y-1.5">
+                  {counterTraceSteps.map((step, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[13px]">
+                      <span className="shrink-0 w-4 font-mono text-[12px] text-primary tabular-nums">
+                        {i + 1}
+                      </span>
+                      <span className="text-foreground">{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -620,73 +506,26 @@ function PanelContent({
 
 // ── Mobile: bottom Sheet ──────────────────────────────────────────────────────
 
+type SharedPanelProps = Omit<PanelContentProps, 'closeButtonClass'>
+
 export function MobileDetailSheet({
   open,
   onClose,
-  label,
-  mainTitle,
-  tab,
-  onTabChange,
-  whyContent,
-  traceSteps,
-  gameweek,
-  version,
-  counterPhase,
-  quickReplies,
-  onCounterSubmit,
-  onCounterReset,
-  onRegenerate,
-  counterDisabled,
-  counterDisabledReason,
-}: {
-  open: boolean
-  onClose: () => void
-  label: string
-  mainTitle: string
-  tab: 'why' | 'trace' | 'counter'
-  onTabChange: (tab: 'why' | 'trace' | 'counter') => void
-  whyContent: React.ReactNode
-  traceSteps: TraceStep[]
-  gameweek: number
-  version: number
-  counterPhase: CounterPhase
-  quickReplies: string[]
-  onCounterSubmit: (quickReply: string | null, message: string) => void
-  onCounterReset: () => void
-  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
-  counterDisabled: boolean
-  counterDisabledReason?: string
-}) {
+  ...panelProps
+}: SharedPanelProps & { open: boolean; onClose: () => void }) {
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="h-[82dvh] rounded-t-2xl border-border p-0 overflow-hidden"
+        className="max-h-[80dvh] rounded-[14px_14px_0_0] border-t border-border p-0 overflow-hidden"
       >
-        <SheetTitle className="sr-only">{mainTitle}</SheetTitle>
+        <SheetTitle className="sr-only">{panelProps.mainTitle}</SheetTitle>
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1" aria-hidden="true">
-          <div className="h-1 w-10 rounded-full bg-border" />
+          <div className="h-1 w-9 rounded-[4px] bg-[#6B6B6B]" />
         </div>
-        <PanelContent
-          label={label}
-          mainTitle={mainTitle}
-          tab={tab}
-          onTabChange={onTabChange}
-          onClose={onClose}
-          whyContent={whyContent}
-          traceSteps={traceSteps}
-          gameweek={gameweek}
-          version={version}
-          counterPhase={counterPhase}
-          quickReplies={quickReplies}
-          onCounterSubmit={onCounterSubmit}
-          onCounterReset={onCounterReset}
-          onRegenerate={onRegenerate}
-          counterDisabled={counterDisabled}
-          counterDisabledReason={counterDisabledReason}
-        />
+        <PanelContent {...panelProps} onClose={onClose} />
       </SheetContent>
     </Sheet>
   )
@@ -696,76 +535,29 @@ export function MobileDetailSheet({
 
 export function DesktopDetailPanel({
   onClose,
-  label,
-  mainTitle,
-  tab,
-  onTabChange,
-  whyContent,
-  traceSteps,
-  gameweek,
-  version,
-  counterPhase,
-  quickReplies,
-  onCounterSubmit,
-  onCounterReset,
-  onRegenerate,
-  counterDisabled,
-  counterDisabledReason,
-}: {
-  onClose: () => void
-  label: string
-  mainTitle: string
-  tab: 'why' | 'trace' | 'counter'
-  onTabChange: (tab: 'why' | 'trace' | 'counter') => void
-  whyContent: React.ReactNode
-  traceSteps: TraceStep[]
-  gameweek: number
-  version: number
-  counterPhase: CounterPhase
-  quickReplies: string[]
-  onCounterSubmit: (quickReply: string | null, message: string) => void
-  onCounterReset: () => void
-  onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
-  counterDisabled: boolean
-  counterDisabledReason?: string
-}) {
+  ...panelProps
+}: SharedPanelProps & { onClose: () => void }) {
   return (
     <aside
       role="region"
-      aria-label="Transfer details"
-      className="border-border bg-card rounded-[14px] border flex flex-col flex-[1_1_360px] max-w-[420px] shrink-0 h-[calc(100dvh-8rem)] overflow-hidden"
+      aria-label="Card details"
+      className="border-border bg-card rounded-[14px] border flex flex-col flex-[1_1_340px] max-w-[420px] shrink-0 sticky top-[150px] max-h-[calc(100dvh-150px)] overflow-y-auto"
     >
-      <PanelContent
-        label={label}
-        mainTitle={mainTitle}
-        tab={tab}
-        onTabChange={onTabChange}
-        onClose={onClose}
-        whyContent={whyContent}
-        traceSteps={traceSteps}
-        gameweek={gameweek}
-        version={version}
-        counterPhase={counterPhase}
-        quickReplies={quickReplies}
-        onCounterSubmit={onCounterSubmit}
-        onCounterReset={onCounterReset}
-        onRegenerate={onRegenerate}
-        counterDisabled={counterDisabled}
-        counterDisabledReason={counterDisabledReason}
-      />
+      <PanelContent {...panelProps} onClose={onClose} />
     </aside>
   )
 }
 
 // ── Unified component ──────────────────────────────────────────────────────────
 
-interface DetailSheetProps {
+export interface DetailSheetProps {
   detail: DetailState | null
   onClose: () => void
-  onTabChange: (tab: 'why' | 'trace' | 'counter') => void
-  transferPayload?: TransferCardPayloadTransfer
-  captainPayload?: CaptainCardPayload
+  onTabChange: (tab: 'counter' | 'trace') => void
+  panelLabel: string
+  panelTitle: string
   traceSteps: TraceStep[]
+  counterTraceSteps?: string[]
   gameweek: number
   version: number
   isMobile: boolean
@@ -776,15 +568,17 @@ interface DetailSheetProps {
   onRegenerate: (payload: Record<string, unknown>, lineupPayload?: Record<string, unknown>, captainPayload?: Record<string, unknown>) => void
   counterDisabled: boolean
   counterDisabledReason?: string
+  countersLeft?: number
 }
 
 export function DetailSheet({
   detail,
   onClose,
   onTabChange,
-  transferPayload,
-  captainPayload,
+  panelLabel,
+  panelTitle,
   traceSteps,
+  counterTraceSteps,
   gameweek,
   version,
   isMobile,
@@ -795,30 +589,34 @@ export function DetailSheet({
   onRegenerate,
   counterDisabled,
   counterDisabledReason,
+  countersLeft,
 }: DetailSheetProps) {
-  if (!detail) return null
+  if (!detail) {
+    if (!isMobile) {
+      return (
+        <aside
+          role="region"
+          aria-label="Card details"
+          className="border-border bg-card rounded-[14px] border flex flex-col flex-[1_1_340px] max-w-[420px] shrink-0 sticky top-[150px] max-h-[calc(100dvh-150px)] p-[18px] overflow-y-auto"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[12px] tracking-[0.08em] text-muted-foreground" />
+            <span className="text-[12px] text-muted-foreground">Pick Counter or Trace on a card</span>
+          </div>
+        </aside>
+      )
+    }
+    return null
+  }
 
-  const isTransfer = !!transferPayload
-  const label = isTransfer ? 'Transfer · Top Pick' : 'Captain'
-  const mainTitle =
-    isTransfer && transferPayload
-      ? `${transferPayload.sell.player.web_name} → ${transferPayload.topPick.player.web_name}`
-      : captainPayload?.captain.player.web_name ?? 'Captain pick'
-
-  const whyContent =
-    isTransfer && transferPayload ? (
-      <WhyTransfer payload={transferPayload} />
-    ) : captainPayload ? (
-      <WhyCaptain payload={captainPayload} />
-    ) : null
-
-  const sharedProps = {
-    label,
-    mainTitle,
+  const sharedProps: SharedPanelProps = {
+    label: panelLabel,
+    mainTitle: panelTitle,
     tab: detail.tab,
     onTabChange,
-    whyContent,
+    onClose,
     traceSteps,
+    counterTraceSteps,
     gameweek,
     version,
     counterPhase,
@@ -828,11 +626,12 @@ export function DetailSheet({
     onRegenerate,
     counterDisabled,
     counterDisabledReason,
+    countersLeft,
   }
 
   if (isMobile) {
-    return <MobileDetailSheet open={!!detail} onClose={onClose} {...sharedProps} />
+    return <MobileDetailSheet open={!!detail} {...sharedProps} />
   }
 
-  return <DesktopDetailPanel onClose={onClose} {...sharedProps} />
+  return <DesktopDetailPanel {...sharedProps} />
 }

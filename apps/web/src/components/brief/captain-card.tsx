@@ -1,17 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { CaptainCardPayload, CaptainPickWithMeta, RiskTag, NewsFlag } from './types'
-
-interface CaptainCardProps {
-  payload: CaptainCardPayload
-  onWhyClick: (trigger: HTMLButtonElement) => void
-  onCounterClick?: (trigger: HTMLButtonElement) => void
-  counterDisabled?: boolean
-  counterDisabledReason?: string
-  isSelected?: boolean
-  newsFlags?: NewsFlag[]
-}
 
 const POS: Record<number, string> = { 1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD' }
 
@@ -23,16 +14,19 @@ function playerMeta(pick: CaptainPickWithMeta): string {
   return `${POS[pick.player.element_type] ?? '?'} · £${(pick.player.now_cost / 10).toFixed(1)}m`
 }
 
-const RISK_TAG_STYLES: Record<RiskTag, string> = {
-  safe: 'border border-foreground/40 text-foreground',
-  balanced: 'bg-secondary text-foreground',
-  bold: 'bg-foreground text-background',
+const RISK_TAG_TITLES: Record<RiskTag, string> = {
+  safe: 'Safe: high floor',
+  balanced: 'Balanced: highest expected points',
+  bold: 'Bold: high ceiling',
 }
 
 function RiskTagBadge({ tag }: { tag: RiskTag }) {
   const label = tag === 'safe' ? 'Safe' : tag === 'bold' ? 'Bold' : 'Balanced'
   return (
-    <span className={cn('inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[11px] font-semibold leading-none', RISK_TAG_STYLES[tag])}>
+    <span
+      title={RISK_TAG_TITLES[tag]}
+      className="inline-flex items-center h-5 px-1.5 border border-[#6B6B6B] rounded-[6px] text-[11px] text-foreground leading-none shrink-0"
+    >
       {label}
     </span>
   )
@@ -42,7 +36,7 @@ function CaptainBadge({ type }: { type: 'C' | 'V' }) {
   return (
     <span
       className={cn(
-        'shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-[14px] font-semibold md:h-6 md:w-6 md:text-[12px]',
+        'shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full text-[14px] font-semibold',
         type === 'C'
           ? 'bg-primary text-primary-foreground'
           : 'border-[1.5px] border-foreground text-foreground',
@@ -64,24 +58,24 @@ function NewsBanner({
   counterDisabled?: boolean
 }) {
   return (
-    <div className="rounded-[10px] border border-amber-500/40 bg-amber-500/10 px-3.5 py-3 flex flex-col gap-2">
-      <div className="flex items-start gap-2">
-        <span className="mt-px shrink-0 text-amber-500" aria-hidden="true">⚠</span>
-        <div className="flex flex-col gap-0.5">
-          <p className="text-[13px] font-semibold text-foreground">News since this brief</p>
-          {flags.map((f) => (
-            <p key={f.playerName} className="text-[13px] text-muted-foreground">
-              <span className="font-medium text-foreground">{f.playerName}:</span> {f.news}
-            </p>
+    <div className="rounded-[10px] border border-warning px-[12px] py-3 flex flex-col gap-2">
+      <div className="flex flex-col gap-0.5">
+        <p className="text-[14px] leading-[1.45]">
+          <span className="font-semibold text-warning">News: </span>
+          {flags.map((f, i) => (
+            <span key={f.playerName}>
+              {i > 0 && ' · '}
+              <span className="font-medium">{f.playerName}</span> — {f.news}
+            </span>
           ))}
-        </div>
+        </p>
       </div>
       {onCounterClick && (
         <button
           type="button"
           onClick={(e) => onCounterClick(e.currentTarget)}
           disabled={counterDisabled}
-          className="self-start inline-flex min-h-[36px] items-center rounded-[8px] border border-amber-500/50 bg-transparent px-3 text-[13px] font-semibold text-foreground hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="self-start inline-flex min-h-[40px] items-center rounded-[6px] border border-border bg-transparent px-3 text-[13px] font-medium text-foreground hover:bg-secondary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Counter to re-check
         </button>
@@ -90,40 +84,90 @@ function NewsBanner({
   )
 }
 
+function CaptainTile({
+  pick,
+  type,
+}: {
+  pick: CaptainPickWithMeta
+  type: 'C' | 'V'
+}) {
+  const gwXp = pick.gw_xp ?? null
+  const isC = type === 'C'
+
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-3 rounded-[10px] bg-background p-[14px]',
+        isC ? 'border-[1.5px] border-primary' : 'border border-secondary',
+      )}
+    >
+      {/* Header row: badge + name+meta col + xP */}
+      <div className="flex items-center gap-3">
+        <CaptainBadge type={type} />
+        <div className="flex flex-1 min-w-0 flex-col gap-px">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[17px] font-semibold leading-[1.3] text-foreground">
+              {pick.player.web_name}
+            </span>
+            {pick.riskTag && <RiskTagBadge tag={pick.riskTag} />}
+          </div>
+          <span className="text-[12px] text-muted-foreground">
+            {playerMeta(pick)}
+          </span>
+        </div>
+        {gwXp != null ? (
+          <span className="font-mono text-[17px] font-semibold tabular-nums shrink-0">
+            {gwXp.toFixed(1)}
+          </span>
+        ) : (
+          <span className="font-mono text-[17px] font-semibold tabular-nums shrink-0 text-muted-foreground">
+            –
+          </span>
+        )}
+      </div>
+      {/* Reason */}
+      <p className="m-0 text-[14px] leading-[1.55] text-[#D6D6D6]">{pick.reason}</p>
+    </div>
+  )
+}
+
+interface CaptainCardProps {
+  payload: CaptainCardPayload
+  onCounterClick?: (trigger: HTMLButtonElement) => void
+  counterDisabled?: boolean
+  counterDisabledReason?: string
+  onTraceClick?: (trigger: HTMLButtonElement) => void
+  isSelected?: boolean
+  newsFlags?: NewsFlag[]
+}
+
 export function CaptainCard({
   payload,
-  onWhyClick,
   onCounterClick,
   counterDisabled = false,
   counterDisabledReason,
+  onTraceClick,
   isSelected = false,
   newsFlags,
 }: CaptainCardProps) {
   const { captain, vc, alternatives } = payload
+  const [expandedAlt, setExpandedAlt] = useState<number | null>(null)
 
   return (
     <article
       className={cn(
-        'border-border bg-card rounded-[14px] border p-4 flex flex-col gap-[14px] md:p-6 md:gap-[16px]',
-        isSelected && 'ring-2 ring-primary',
+        'border-border bg-card rounded-[14px] border p-[14px] flex flex-col gap-[12px] md:p-6 md:gap-4',
+        isSelected && 'border-[#A3A3A3]',
       )}
       aria-label={`Captain: ${captain.player.web_name}`}
     >
       {/* Card header */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] font-semibold leading-4 tracking-[0.06em] uppercase text-muted-foreground">
+        <span className="font-mono text-[12px] font-semibold leading-4 tracking-[0.08em] uppercase text-muted-foreground">
           Captain
         </span>
-        {/* Action buttons — desktop only (in header) */}
-        <div className="hidden md:flex items-center gap-3">
-          <button
-            type="button"
-            onClick={(e) => onWhyClick(e.currentTarget)}
-            aria-label={`Why ${captain.player.web_name} as captain?`}
-            className="inline-flex min-h-[44px] items-center border-0 bg-transparent p-0 text-[14px] font-semibold text-foreground underline underline-offset-[3px] hover:text-primary cursor-pointer focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            Why?
-          </button>
+        {/* Action buttons — desktop only */}
+        <div className="hidden md:flex items-center gap-2">
           {onCounterClick && (
             <button
               type="button"
@@ -131,9 +175,19 @@ export function CaptainCard({
               disabled={counterDisabled}
               title={counterDisabledReason}
               aria-label="Counter this pick"
-              className="inline-flex min-h-[44px] items-center rounded-[8px] border border-border bg-transparent px-3 text-[14px] font-semibold text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer transition-colors"
+              className="inline-flex h-9 items-center rounded-[6px] border border-border bg-transparent px-3 text-[13px] font-medium text-foreground hover:border-muted-foreground disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
             >
               Counter this pick
+            </button>
+          )}
+          {onTraceClick && (
+            <button
+              type="button"
+              onClick={(e) => onTraceClick(e.currentTarget)}
+              aria-label="View agent trace"
+              className="inline-flex h-9 items-center rounded-[6px] border border-border bg-transparent px-3 text-[13px] font-medium text-foreground hover:border-muted-foreground transition-colors"
+            >
+              Trace
             </button>
           )}
         </div>
@@ -143,170 +197,86 @@ export function CaptainCard({
         <NewsBanner flags={newsFlags} onCounterClick={onCounterClick} counterDisabled={counterDisabled} />
       )}
 
-      {/* ── Desktop: 4-column grid (C · V · alts) ──────────────────────────── */}
-      <div
-        className="hidden md:grid md:gap-3.5"
-        style={{ gridTemplateColumns: `repeat(${2 + alternatives.length}, minmax(0, 1fr))` }}
-      >
-        {/* Captain emphasis */}
-        <div className="flex flex-col gap-1.5 rounded-[10px] border-2 border-primary bg-background p-4">
-          <div className="flex items-center gap-2">
-            <CaptainBadge type="C" />
-            <span className="text-[12px] font-semibold leading-4 tracking-[0.06em] uppercase text-muted-foreground">
-              Captain
-            </span>
-            {captain.riskTag && <RiskTagBadge tag={captain.riskTag} />}
-          </div>
-          <span className="text-[20px] leading-[26px] font-semibold text-foreground">
-            {captain.player.web_name}
-          </span>
-          <span className="text-[13px] leading-[18px] text-muted-foreground">
-            {playerMeta(captain)}
-          </span>
-          <p className="text-[13px] leading-[18px] text-foreground">{captain.reason}</p>
-        </div>
-
-        {/* Vice block */}
-        <div className="flex flex-col gap-1.5 rounded-[10px] border border-border p-4">
-          <div className="flex items-center gap-2">
-            <CaptainBadge type="V" />
-            <span className="text-[12px] font-semibold leading-4 tracking-[0.06em] uppercase text-muted-foreground">
-              Vice
-            </span>
-          </div>
-          <span className="text-[17px] leading-6 font-semibold text-foreground">
-            {vc.player.web_name}
-          </span>
-          <span className="text-[13px] leading-[18px] text-muted-foreground">
-            {playerMeta(vc)}
-          </span>
-          <p className="text-[13px] leading-[18px] text-foreground">{vc.reason}</p>
-        </div>
-
-        {/* Alt cards */}
-        {alternatives.map((alt) => (
-          <div
-            key={alt.player.id}
-            className="flex flex-col gap-1.5 bg-secondary rounded-[10px] p-4"
-          >
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[12px] font-semibold leading-4 tracking-[0.06em] uppercase text-muted-foreground">
-                Alternative
-              </span>
-              {alt.riskTag && <RiskTagBadge tag={alt.riskTag} />}
-              {alt.riskTag === 'safe' && (
-                <span className="text-[11px] text-muted-foreground">highest floor</span>
-              )}
-              {alt.riskTag === 'bold' && (
-                <span className="text-[11px] text-muted-foreground">highest ceiling</span>
-              )}
-            </div>
-            <span className="text-[17px] leading-[24px] font-semibold text-foreground">
-              {alt.player.web_name}
-            </span>
-            <span className="text-[13px] leading-[18px] text-muted-foreground">
-              {playerMeta(alt)}
-            </span>
-            <p className="text-[13px] leading-[18px] text-foreground">{alt.reason}</p>
-          </div>
-        ))}
+      {/* Captain + VC — 2-col on desktop, stacked on mobile */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <CaptainTile pick={captain} type="C" />
+        <CaptainTile pick={vc} type="V" />
       </div>
 
-      {/* ── Mobile: stacked layout ──────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3.5 md:hidden">
-        {/* Captain emphasis */}
-        <div className="flex gap-3 rounded-[10px] border-2 border-primary bg-background p-3.5">
-          <CaptainBadge type="C" />
-          <div className="flex flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[20px] leading-[26px] font-semibold text-foreground">
-                {captain.player.web_name}
-              </span>
-              {captain.riskTag && <RiskTagBadge tag={captain.riskTag} />}
-            </div>
-            <span className="text-[13px] leading-[18px] text-muted-foreground">
-              {playerMeta(captain)}
-            </span>
-            <p className="text-[14px] leading-5 text-foreground">{captain.reason}</p>
+      {/* Alternatives — folded by default */}
+      {alternatives.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="font-mono text-[11px] font-semibold tracking-[0.06em] uppercase text-muted-foreground pt-1">
+            {alternatives.length} alternative{alternatives.length > 1 ? 's' : ''}
+          </span>
+          <div className="flex flex-col gap-1.5">
+            {alternatives.map((alt, i) => {
+              const isOpen = expandedAlt === i
+              const altGwXp = alt.gw_xp ?? (alt.player.ep_next ? parseFloat(alt.player.ep_next) : null)
+              return (
+                <div
+                  key={alt.player.id}
+                  className={cn(
+                    'rounded-[10px] transition-all',
+                    isOpen ? 'bg-[#2F2F2F] outline outline-1 outline-[#6B6B6B]' : 'bg-[#232323]',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedAlt(prev => prev === i ? null : i)}
+                    aria-expanded={isOpen}
+                    className="w-full grid grid-cols-[22px_1fr_84px_48px_20px] gap-3 items-center px-[10px] min-h-[48px] bg-transparent border-0 text-foreground text-left cursor-pointer"
+                  >
+                    <span className="font-mono text-[12px] text-muted-foreground tabular-nums">{i + 1}</span>
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[15px] font-medium leading-[1.2] truncate">{alt.player.web_name}</span>
+                      <span className="text-[12px] text-muted-foreground">{playerMeta(alt)}</span>
+                    </div>
+                    <div className="justify-self-end">
+                      {alt.riskTag && <RiskTagBadge tag={alt.riskTag} />}
+                    </div>
+                    {altGwXp != null ? (
+                      <span className="font-mono text-[14px] tabular-nums text-right">{altGwXp.toFixed(1)}</span>
+                    ) : (
+                      <span className="font-mono text-[14px] tabular-nums text-right text-muted-foreground">–</span>
+                    )}
+                    <span className="text-muted-foreground text-[18px] text-center" aria-hidden="true">
+                      {isOpen ? '−' : '+'}
+                    </span>
+                  </button>
+                  {isOpen && alt.reason && (
+                    <p className="pl-[46px] pb-3.5 m-0 text-sm leading-[1.55] text-muted-foreground">
+                      {alt.reason}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
+      )}
 
-        {/* Vice */}
-        <div className="flex gap-3">
-          <CaptainBadge type="V" />
-          <div className="flex flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[16px] leading-[22px] font-semibold text-foreground">
-                {vc.player.web_name}
-              </span>
-            </div>
-            <span className="text-[13px] leading-[18px] text-muted-foreground">
-              {playerMeta(vc)}
-            </span>
-            <p className="text-[14px] leading-5 text-foreground">{vc.reason}</p>
-          </div>
-        </div>
-
-        {/* Action row — mobile only (after vice) */}
-        <div className="flex items-center gap-4 flex-wrap">
+      {/* Mobile: Counter + Trace buttons (full-width pair) */}
+      <div className="flex gap-2 md:hidden">
+        {onCounterClick && (
           <button
             type="button"
-            onClick={(e) => onWhyClick(e.currentTarget)}
-            aria-label={`Why ${captain.player.web_name} as captain?`}
-            className="inline-flex min-h-[44px] items-center border-0 bg-transparent p-0 text-[14px] font-semibold text-foreground underline underline-offset-[3px] hover:text-primary cursor-pointer focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            onClick={(e) => onCounterClick(e.currentTarget)}
+            disabled={counterDisabled}
+            title={counterDisabledReason}
+            className="flex-1 inline-flex min-h-[44px] items-center justify-center rounded-[6px] border border-border bg-transparent text-[14px] font-medium text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
           >
-            Why?
+            Counter this pick
           </button>
-          {onCounterClick && (
-            <button
-              type="button"
-              onClick={(e) => onCounterClick(e.currentTarget)}
-              disabled={counterDisabled}
-              title={counterDisabledReason}
-              aria-label="Counter this pick"
-              className="inline-flex min-h-[44px] items-center rounded-[8px] border border-border bg-transparent px-3 text-[14px] font-semibold text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer transition-colors"
-            >
-              Counter this pick
-            </button>
-          )}
-        </div>
-
-        {/* Alternatives */}
-        {alternatives.length > 0 && (
-          <>
-            <div className="h-px bg-border" />
-            <span className="text-[12px] font-semibold leading-4 tracking-[0.06em] uppercase text-muted-foreground">
-              Alternatives
-            </span>
-            {alternatives.map((alt, i) => (
-              <div
-                key={alt.player.id}
-                className={cn(
-                  'flex flex-col gap-0.5 pb-2.5',
-                  i < alternatives.length - 1 && 'border-b border-border',
-                )}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                    <span className="text-[15px] leading-[22px] font-semibold text-foreground">
-                      {alt.player.web_name}
-                    </span>
-                    {alt.riskTag && <RiskTagBadge tag={alt.riskTag} />}
-                    {alt.riskTag === 'safe' && (
-                      <span className="text-[11px] text-muted-foreground">highest floor</span>
-                    )}
-                    {alt.riskTag === 'bold' && (
-                      <span className="text-[11px] text-muted-foreground">highest ceiling</span>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-[13px] text-muted-foreground">
-                    {playerMeta(alt)}
-                  </span>
-                </div>
-                <p className="text-[14px] leading-5 text-foreground">{alt.reason}</p>
-              </div>
-            ))}
-          </>
+        )}
+        {onTraceClick && (
+          <button
+            type="button"
+            onClick={(e) => onTraceClick(e.currentTarget)}
+            className="flex-1 inline-flex min-h-[44px] items-center justify-center rounded-[6px] border border-border bg-transparent text-[14px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+          >
+            Trace
+          </button>
         )}
       </div>
     </article>
