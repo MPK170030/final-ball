@@ -54,7 +54,15 @@ export async function loadContext(teamId: number, client: FplClient): Promise<Ag
     picks = await client.getEntryPicks(teamId, prevGwId)
   }
   const bank = picks.entry_history.bank
-  const freeTransfers = deriveFreeTransfers(history.current, history.chips, gwId)
+
+  // FPL's history endpoint can lag during live GWs: the current GW entry may be
+  // absent while matches are being played. Supplement with picks.entry_history
+  // (from the picks endpoint, which is always current) to avoid an off-by-one.
+  const historyEventIds = new Set(history.current.map(e => e.event))
+  const historyForFt = historyEventIds.has(picks.entry_history.event)
+    ? history.current
+    : [...history.current, picks.entry_history]
+  const freeTransfers = deriveFreeTransfers(historyForFt, history.chips, gwId)
 
   const playerById = new Map<number, Player>(bootstrap.elements.map(p => [p.id, p]))
   const squadPlayers = picks.picks
